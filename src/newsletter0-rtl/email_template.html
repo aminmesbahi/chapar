@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ایمیل</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;            
+            direction: rtl;
+            text-align: right;
+            background-color: #f9f9f9;
+        }
+        .font-fa{
+            font-family: 'Vazirmatn', 'Vazir', 'IRANSans', 'Shabnam', 'Byeka', 'Yekan', 'Sahel', 'BNazanin', Arial, sans-serif;
+        }
+        .rname{
+            direction: rtl;
+            text-align: right;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border: 1px solid #dddddd;
+            border-radius: 8px;
+            overflow: hidden;
+            direction: rtl;
+            text-align: right;
+        }
+        .header {
+            background: #008aa9;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+            color: #333333;
+            line-height: 1.7em;
+        }
+        .footer {
+            background: #f1f1f1;
+            text-align: center;
+            padding: 10px;
+            font-size: 12px;
+            color: #555555;
+        }
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100%;
+                margin: 10px 0;
+            }
+            .header, .content, .footer {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container font-fa">
+        <div class="header font-fa">
+            <h2>عنوان خبرنامه</h2>
+        </div>
+        <div class="content font-fa">
+            <h3 class="rname">سلام {{name}}!</h3>
+            <p>ٰلوريم إيبسوم(Lorem Ipsum) هو ببساطة نص شكلي (بمعنى أن الغاية هي الشكل وليس المحتوى) ويُستخدم في صناعات المطابع ودور النشر. كان لوريم إيبسوم ولايزال المعيار للنص الشكلي منذ القرن الخامس عشر عندما قامت مطبعة مجهولة برص مجموعة من الأحرف بشكل عشوائي أخذتها من نص، لتكوّن كتيّب بمثابة دليل أو مرجع شكلي لهذه الأحرف. خمسة قرون من الزمن لم تقضي على هذا النص، بل انه حتى صار مستخدماً وبشكله الأصلي في الطباعة والتنضيد الإلكتروني. انتشر بشكل كبير في ستينيّات هذا القرن مع إصدار رقائق "ليتراسيت" (Letraset) البلاستيكية تحوي مقاطع من هذا النص، وعاد لينتشر مرة أخرى مؤخراَ مع ظهور برامج النشر الإلكتروني مثل "ألدوس بايج مايكر" (Aldus PageMaker) والتي حوت أيضاً على نسخ من نص لوريم إيبسوم.</p>
+            <p>شکرا<br>ٰلوريم إيبسوم(</p>
+        </div>
+        <div class="footer font-fa">
+            <p><b>ٰلوريم إيبسوم ©</b>  |  <a href="https://loremipsum.com">ٰلوريم إيبسوم شراکه</a></p>
+        </div>
+    </div>
+</body>
+</html>

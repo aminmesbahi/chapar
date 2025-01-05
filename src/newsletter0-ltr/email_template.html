@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;            
+            direction: rtl;
+            text-align: right;
+            background-color: #f9f9f9;
+        }
+        .font{
+            font-family: 'Segoe UI', Roboto, 'Open Sans', Aptos, 'Helvetica Neue', Helvetica, 'SF Pro', Lato, Nunito, Poppins, Inter, Arial, 'Times New Roman', sans-serif;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border: 1px solid #dddddd;
+            border-radius: 8px;
+            overflow: hidden;
+            direction: rtl;
+            text-align: right;
+        }
+        .header {
+            background: #008aa9;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+            color: #333333;
+            line-height: 1.7em;
+        }
+        .footer {
+            background: #f1f1f1;
+            text-align: center;
+            padding: 10px;
+            font-size: 12px;
+            color: #555555;
+        }
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100%;
+                margin: 10px 0;
+            }
+            .header, .content, .footer {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container font">
+        <div class="header font">
+            <h2>Newsletter Title</h2>
+        </div>
+        <div class="content font">
+            <h3 class="font">Dear {{name}}!</h3>
+            <p>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum</p>
+            <p>Regards<br>Lorem Ipsum</p>
+        </div>
+        <div class="footer font">
+            <p><b>Lorem Ipsum ©</b>  |  <a href="https://loremIpsum.com">Lorem Ipsum Co</a></p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,4 @@
+configparser>=5.0.0
+
+#Flask>=2.0.0
+#Werkzeug>=2.0.0

@@ -1,0 +1,44 @@
+### Variables
+@baseUrl = http://localhost:5000
+@contentType = multipart/form-data
+
+### Health Check
+GET {{baseUrl}}/api/health
+Accept: application/json
+
+### Send Emails
+# @name sendEmails
+POST {{baseUrl}}/api/send
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="template"; filename="email_template.html"
+Content-Type: text/html
+
+< ./samples/email_template.html
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="recipients"; filename="recipients.csv"
+Content-Type: text/csv
+
+< ./samples/recipients.csv
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="config"; filename="config.ini"
+Content-Type: text/plain
+
+< ./samples/config.ini
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Invalid Request - Missing Files
+POST {{baseUrl}}/api/send
+Content-Type: {{contentType}}
+
+### Invalid Request - Wrong File Type
+POST {{baseUrl}}/api/send
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="template"; filename="invalid.txt"
+Content-Type: text/plain
+
+Invalid file content
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

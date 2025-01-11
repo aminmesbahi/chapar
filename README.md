@@ -152,6 +152,40 @@ This Docker setup allows you to:
 3. Mount local directories containing your email templates and configurations
 4. Handle both RTL and LTR templates properly with UTF-8 support
 
+
+
+
+### Running Tests
+
+1. Install REST Client extension in VS Code:
+
+
+2. Create test sample files in `/test/samples/`:
+- Copy your template, recipients, and config files
+- Modify with test data
+
+3. Open `test/api.http` in VS Code
+
+4. Click "Send Request" above each test case to execute:
+- Health check endpoint
+- Email sending with valid files
+- Error handling scenarios
+
+### Sample Test Cases
+
+1. Health Check:
+```http
+GET http://localhost:5000/api/health
+```
+
+2. Send Emails:
+
+```
+POST http://localhost:5000/api/send
+Content-Type: multipart/form-data
+```
+3. View responses in the split pane that opens in VS Code
+
 ### Roadmap
 - docker support
 - expose REST API

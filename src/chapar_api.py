@@ -6,11 +6,15 @@ import chapar
 import configparser
 import tempfile
 import shutil
+import logging
 
 app = Flask(__name__)
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 # Configure upload folder for temporary files
-UPLOAD_FOLDER = tempfile.mkdtemp()
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', tempfile.mkdtemp())
 ALLOWED_EXTENSIONS = {'html', 'csv', 'ini'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -52,6 +56,7 @@ def send_emails():
             chapar.main(temp_dir)
             result = {'status': 'success', 'message': 'Emails sent successfully'}
         except Exception as e:
+            logging.error(f"Error during email dispatch: {e}")
             result = {'status': 'error', 'message': str(e)}
 
         # Cleanup
@@ -60,6 +65,7 @@ def send_emails():
         return jsonify(result)
 
     except Exception as e:
+        logging.error(f"Unexpected error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/health', methods=['GET'])

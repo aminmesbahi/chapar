@@ -36,7 +36,7 @@ def read_csv(folder):
 def send_email(smtp_settings, recipient_email, recipient_name, html_content):
     try:
         message = MIMEMultipart("alternative")
-        display_name = smtp_settings.get('DisplayName', 'No-Reply')
+        display_name = smtp_settings.get('DisplayName', 'TechAfternoon')
         message["From"] = formataddr((str(Header(display_name, "utf-8")), smtp_settings['email']))
         message["To"] = recipient_email
         message["Subject"] = Header(smtp_settings['subject'], "utf-8")

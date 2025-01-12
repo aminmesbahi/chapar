@@ -22,6 +22,21 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def save_uploaded_files(files, temp_dir):
+    saved_files = {}
+    for key, filename in files.items():
+        if key not in request.files:
+            raise ValueError(f'Missing {key} file')
+        
+        file = request.files[key]
+        if not allowed_file(file.filename):
+            raise ValueError(f'Invalid file type for {key}')
+        
+        filepath = os.path.join(temp_dir, filename)
+        file.save(filepath)
+        saved_files[key] = filepath
+    return saved_files
+
 @app.route('/api/send', methods=['POST'])
 def send_emails():
     try:
@@ -38,18 +53,11 @@ def send_emails():
             'config': 'config.ini'
         }
 
-        for key, filename in files.items():
-            if key not in request.files:
-                shutil.rmtree(temp_dir)
-                return jsonify({'error': f'Missing {key} file'}), 400
-            
-            file = request.files[key]
-            if not allowed_file(file.filename):
-                shutil.rmtree(temp_dir)
-                return jsonify({'error': f'Invalid file type for {key}'}), 400
-            
-            filepath = os.path.join(temp_dir, filename)
-            file.save(filepath)
+        try:
+            saved_files = save_uploaded_files(files, temp_dir)
+        except ValueError as e:
+            shutil.rmtree(temp_dir)
+            return jsonify({'error': str(e)}), 400
 
         # Run Chapar email sending process
         try:

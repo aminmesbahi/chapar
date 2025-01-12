@@ -33,7 +33,7 @@ def read_csv(folder):
         reader = csv.DictReader(file)
         return [row for row in reader]
 
-def send_email(smtp_settings, recipient_email, recipient_name, html_content):
+def send_email(smtp_settings, recipient_email, recipient_name, html_content, log_level, template_name):
     try:
         message = MIMEMultipart("alternative")
         display_name = smtp_settings.get('DisplayName', 'TechAfternoon')
@@ -61,7 +61,8 @@ def send_email(smtp_settings, recipient_email, recipient_name, html_content):
         else:
             raise ValueError("Unsupported port for SMTP connection")
 
-        logging.info(f"Sent email to {recipient_email}")
+        if log_level == 'detailed':
+            logging.info(f"{datetime.now()} sent template {template_name} to {recipient_email} succeeded")
         return True
 
     except Exception as e:
@@ -82,6 +83,8 @@ def main(folder):
             'subject': config['SMTP']['Subject']
         }
         interval = int(config['Settings']['Interval'])
+        log_level = config['Settings'].get('LogLevel', 'none')
+        template_name = os.path.basename(folder)
 
         html_content = read_html(folder)
         recipients = read_csv(folder)
@@ -95,13 +98,15 @@ def main(folder):
         for recipient in recipients:
             email = recipient['email']
             name = recipient['name']
-            if send_email(smtp_settings, email, name, html_content):
+            if send_email(smtp_settings, email, name, html_content, log_level, template_name):
                 success_count += 1
             else:
                 failure_count += 1
             time.sleep(interval)
 
         elapsed_time = time.time() - start_time
+        if log_level == 'job':
+            logging.info(f"Sent {success_count} successful emails from {total_recipients} total recipients with template {template_name}")
         logging.info(f"Email dispatch completed: {success_count} sent, {failure_count} failed. Total time: {elapsed_time:.2f} seconds.")
 
     except Exception as e:

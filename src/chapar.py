@@ -9,10 +9,11 @@ from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
 from datetime import datetime
+from typing import Dict, List
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def load_config(folder):
+def load_config(folder: str) -> configparser.ConfigParser:
     config = configparser.ConfigParser()
     config_file = os.path.join(folder, "config.ini") 
     if not os.path.exists(config_file):
@@ -37,7 +38,23 @@ def read_csv(folder):
         raise FileNotFoundError(f"Recipients CSV file not found in {folder}")
     with open(csv_file, 'r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
-        return [row for row in reader]
+        required_columns = {'email', 'name'}
+    if not required_columns.issubset(reader.fieldnames):
+        raise ValueError("CSV missing required columns: email/name")
+    return [row for row in reader]
+    
+def _create_smtp_server(host, port, email, password):
+    if port == 465:
+        server = smtplib.SMTP_SSL(host, port, timeout=10)
+        logging.info("SSL connection established")
+    elif port == 587:
+        server = smtplib.SMTP(host, port, timeout=10)
+        server.starttls()
+        logging.info("TLS connection established")
+    else:
+        raise ValueError("Unsupported port")
+    server.login(email, password)
+    return server
 
 def send_email(smtp_settings, recipient_email, recipient_name, html_content, log_level, template_name):
     try:
@@ -50,22 +67,8 @@ def send_email(smtp_settings, recipient_email, recipient_name, html_content, log
         personalized_html = html_content.replace("{{name}}", recipient_name)
         part = MIMEText(personalized_html, "html", "utf-8")
         message.attach(part)
-
-        if int(smtp_settings['port']) == 465:
-            with smtplib.SMTP_SSL(smtp_settings['host'], 465) as server:
-                logging.info("SSL connection established")
-                server.ehlo()
-                server.login(smtp_settings['email'], smtp_settings['password'])
-                server.sendmail(smtp_settings['email'], recipient_email, message.as_string())
-        elif int(smtp_settings['port']) == 587:
-            with smtplib.SMTP(smtp_settings['host'], 587) as server:
-                server.ehlo()
-                server.starttls()
-                logging.info("TLS connection established")
-                server.login(smtp_settings['email'], smtp_settings['password'])
-                server.sendmail(smtp_settings['email'], recipient_email, message.as_string())
-        else:
-            raise ValueError("Unsupported port for SMTP connection")
+        server = _create_smtp_server(smtp_settings['host'], int(smtp_settings['port']), smtp_settings['email'], smtp_settings['password'])
+        server.sendmail(smtp_settings['email'], recipient_email, message.as_string())    
 
         if log_level == 'detailed':
             logging.info(f"{datetime.now()} sent template {template_name} to {recipient_email} succeeded")

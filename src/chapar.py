@@ -14,8 +14,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def load_config(folder):
     config = configparser.ConfigParser()
-    config_file = os.path.join(folder, "config.ini") if os.path.exists(os.path.join(folder, "config.ini")) else "config.ini"
+    config_file = os.path.join(folder, "config.ini") 
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"Config file not found: {config_file}")
     config.read(config_file, encoding='utf-8')
+    required_sections = ['SMTP', 'Settings']
+    for section in required_sections:
+        if not config.has_section(section):
+            raise ValueError(f"Missing section in config: {section}")
     return config
 
 def read_html(folder):

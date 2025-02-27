@@ -1,4 +1,3 @@
-# src/chapar.py
 import os
 import smtplib
 import csv
@@ -126,6 +125,57 @@ def _create_smtp_server(host: str, port: int, email: str, password: str) -> smtp
     except smtplib.SMTPException as e:
         raise smtplib.SMTPException(f"SMTP authentication error: {e}")
 
+def send_emails_from_files(config_path: str, recipients_path: str, template_path: str) -> None:
+    """
+    Sends emails using the specified configuration, recipients, and template files.
+
+    Args:
+        config_path: Path to the config.ini file.
+        recipients_path: Path to the recipients.csv file.
+        template_path: Path to the email_template.html file.
+    """
+    folder = os.path.dirname(config_path)  # Extract folder path
+    start_time = time.time()
+    logging.info(f"Starting email dispatch for folder: {folder}")
+
+    try:
+        config = load_config(folder)
+        smtp_settings = {
+            'host': config['SMTP']['Host'],
+            'port': config['SMTP']['Port'],
+            'email': config['SMTP']['Email'],
+            'password': config['SMTP']['Password'],
+            'subject': config['SMTP']['Subject']
+        }
+        interval = int(config['Settings']['Interval'])
+        log_level = config['Settings']['LogLevel']
+        template_name = os.path.basename(folder)
+
+        html_content = read_html(folder)
+        recipients = read_csv(folder)
+
+        total_recipients = len(recipients)
+        success_count = 0
+        failure_count = 0
+
+        logging.info(f"Found {total_recipients} recipients in the list.")
+
+        for recipient in recipients:
+            email = recipient['email']
+            name = recipient['name']
+            if send_email(smtp_settings, email, name, html_content, log_level, template_name):
+                success_count += 1
+            else:
+                failure_count += 1
+            time.sleep(interval)
+
+        elapsed_time = time.time() - start_time
+        if log_level == 'job':
+            logging.info(f"Sent {success_count} successful emails from {total_recipients} total recipients with template {template_name}")
+        logging.info(f"Email dispatch completed: {success_count} sent, {failure_count} failed. Total time: {elapsed_time:.2f} seconds.")
+
+    except Exception as e:
+        logging.error(f"Error during email dispatch in folder {folder}: {e}")
 
 def send_email(smtp_settings: Dict[str, str], recipient_email: str, recipient_name: str, html_content: str, log_level: str, template_name: str) -> bool:
     """Sends a personalized email to a recipient.

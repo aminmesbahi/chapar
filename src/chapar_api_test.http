@@ -1,13 +1,24 @@
 ### Variables
 @baseUrl = http://localhost:5000
 @contentType = multipart/form-data
-@templatePath = ./samples/email_template.html
-@recipientsPath = ./samples/recipients.csv
-@configPath = ./samples/config.ini
+@templatePath = ./_test/samples/email_template.html
+@recipientsPath = ./_test/samples/recipients.csv
+@configPath = ./_test/samples/config.ini
+@invalidRecipientsPath = ./_test/samples/invalid_recipients.csv
 
 ### Health Check
 GET {{baseUrl}}/api/health
 Accept: application/json
+
+> {%
+client.test("Health check status code is 200", function() {
+  client.assert(response.status === 200, "Status code is not 200");
+});
+client.test("Response body is valid", function() {
+  client.assert(response.body.hasOwnProperty("status"), "Response does not contain status");
+  client.assert(response.body.status === "healthy", "Status is not healthy");
+});
+%}
 
 ### Send Emails
 # @name sendEmails
@@ -31,9 +42,28 @@ Content-Type: text/plain
 < {{configPath}}
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
+> {%
+client.test("Send emails status code is 200", function() {
+  client.assert(response.status === 200, "Status code is not 200");
+});
+client.test("Response body is valid", function() {
+  client.assert(response.body.hasOwnProperty("status"), "Response does not contain status");
+  client.assert(response.body.status === "success", "Status is not success");
+});
+%}
+
 ### Invalid Request - Missing Files
 POST {{baseUrl}}/api/send
 Content-Type: {{contentType}}
+
+> {%
+client.test("Missing files status code is 400", function() {
+  client.assert(response.status === 400, "Status code is not 400");
+});
+client.test("Response body contains error message", function() {
+  client.assert(response.body.hasOwnProperty("error"), "Response does not contain error");
+});
+%}
 
 ### Invalid Request - Wrong File Type
 POST {{baseUrl}}/api/send
@@ -45,6 +75,15 @@ Content-Type: text/plain
 
 Invalid file content
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+> {%
+client.test("Wrong file type status code is 400", function() {
+  client.assert(response.status === 400, "Status code is not 400");
+});
+client.test("Response body contains error message", function() {
+  client.assert(response.body.hasOwnProperty("error"), "Response does not contain error");
+});
+%}
 
 ### Invalid Email Address
 POST {{baseUrl}}/api/send
@@ -59,10 +98,20 @@ Content-Type: text/html
 Content-Disposition: form-data; name="recipients"; filename="invalid_recipients.csv"
 Content-Type: text/csv
 
-< ./samples/invalid_recipients.csv
+< {{invalidRecipientsPath}}
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
 Content-Disposition: form-data; name="config"; filename="config.ini"
 Content-Type: text/plain
 
 < {{configPath}}
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+> {%
+client.test("Invalid email address status code is 200", function() {
+  client.assert(response.status === 200, "Status code is not 200");
+});
+client.test("Response body contains error message", function() {
+  client.assert(response.body.hasOwnProperty("status"), "Response does not contain status");
+  client.assert(response.body.status === "error", "Status is not error");
+});
+%}

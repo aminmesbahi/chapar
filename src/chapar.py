@@ -1,3 +1,4 @@
+# src/chapar.py
 import os
 import smtplib
 import csv
@@ -9,54 +10,137 @@ from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def load_config(folder: str) -> configparser.ConfigParser:
+    """Loads and validates the configuration file.
+
+    Args:
+        folder: The folder containing the config.ini file.
+
+    Returns:
+        A ConfigParser object.
+
+    Raises:
+        FileNotFoundError: If the config.ini file is not found.
+        ValueError: If the config file is invalid.
+    """
     config = configparser.ConfigParser()
-    config_file = os.path.join(folder, "config.ini") 
+    config_file = os.path.join(folder, "config.ini")
     if not os.path.exists(config_file):
         raise FileNotFoundError(f"Config file not found: {config_file}")
-    config.read(config_file, encoding='utf-8')
+    try:
+        config.read(config_file, encoding='utf-8')
+    except configparser.Error as e:
+        raise ValueError(f"Error parsing config file: {e}")
+
     required_sections = ['SMTP', 'Settings']
     for section in required_sections:
         if not config.has_section(section):
             raise ValueError(f"Missing section in config: {section}")
+
+    # Validate settings
+    try:
+        interval = int(config['Settings'].get('Interval', '0'))  # Default to 0 if missing
+        config['Settings']['Interval'] = str(interval) # Ensure it's written back as a string
+        log_level = config['Settings'].get('LogLevel', 'none').lower() # Default to 'none'
+        if log_level not in ['none', 'job', 'detailed']:
+            raise ValueError("Invalid LogLevel. Must be 'none', 'job', or 'detailed'.")
+        config['Settings']['LogLevel'] = log_level
+    except ValueError as e:
+        raise ValueError(f"Invalid setting in config: {e}")
+
     return config
 
-def read_html(folder):
+def read_html(folder: str) -> str:
+    """Reads the HTML template file.
+
+    Args:
+        folder: The folder containing the email_template.html file.
+
+    Returns:
+        The HTML content as a string.
+
+    Raises:
+        FileNotFoundError: If the email_template.html file is not found.
+    """
     html_file = os.path.join(folder, "email_template.html")
     if not os.path.exists(html_file):
         raise FileNotFoundError(f"HTML template not found in {folder}")
     with open(html_file, 'r', encoding='utf-8') as file:
         return file.read()
 
-def read_csv(folder):
+def read_csv(folder: str) -> List[Dict[str, str]]:
+    """Reads the recipients CSV file.
+
+    Args:
+        folder: The folder containing the recipients.csv file.
+
+    Returns:
+        A list of dictionaries, where each dictionary represents a recipient.
+
+    Raises:
+        FileNotFoundError: If the recipients.csv file is not found.
+        ValueError: If the CSV file is missing required columns.
+    """
     csv_file = os.path.join(folder, "recipients.csv")
     if not os.path.exists(csv_file):
         raise FileNotFoundError(f"Recipients CSV file not found in {folder}")
     with open(csv_file, 'r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         required_columns = {'email', 'name'}
-    if not required_columns.issubset(reader.fieldnames):
-        raise ValueError("CSV missing required columns: email/name")
-    return [row for row in reader]
-    
-def _create_smtp_server(host, port, email, password):
-    if port == 465:
-        server = smtplib.SMTP_SSL(host, port, timeout=10)
-        logging.info("SSL connection established")
-    elif port == 587:
-        server = smtplib.SMTP(host, port, timeout=10)
-        server.starttls()
-        logging.info("TLS connection established")
-    else:
-        raise ValueError("Unsupported port")
-    server.login(email, password)
-    return server
+        if not required_columns.issubset(reader.fieldnames):
+            raise ValueError("CSV missing required columns: email/name")
+        return [row for row in reader]
 
-def send_email(smtp_settings, recipient_email, recipient_name, html_content, log_level, template_name):
+def _create_smtp_server(host: str, port: int, email: str, password: str) -> smtplib.SMTP:
+    """Creates and logs in to an SMTP server.
+
+    Args:
+        host: The SMTP host.
+        port: The SMTP port.
+        email: The email address to log in with.
+        password: The password to log in with.
+
+    Returns:
+        An SMTP server object.
+
+    Raises:
+        ValueError: If the port is not supported.
+        smtplib.SMTPException: If there is an error connecting to the SMTP server.
+    """
+    try:
+        if port == 465:
+            server = smtplib.SMTP_SSL(host, port, timeout=10)
+            logging.info("SSL connection established")
+        elif port == 587:
+            server = smtplib.SMTP(host, port, timeout=10)
+            server.starttls()
+            logging.info("TLS connection established")
+        else:
+            raise ValueError("Unsupported port")
+        server.login(email, password)
+        return server
+    except smtplib.SMTPException as e:
+        raise smtplib.SMTPException(f"SMTP authentication error: {e}")
+
+
+def send_email(smtp_settings: Dict[str, str], recipient_email: str, recipient_name: str, html_content: str, log_level: str, template_name: str) -> bool:
+    """Sends a personalized email to a recipient.
+
+    Args:
+        smtp_settings: A dictionary containing the SMTP settings.
+        recipient_email: The recipient's email address.
+        recipient_name: The recipient's name.
+        html_content: The HTML content of the email.
+        log_level: The logging level.
+        template_name: The name of the email template.
+
+    Returns:
+        True if the email was sent successfully, False otherwise.
+    """
     try:
         message = MIMEMultipart("alternative")
         display_name = smtp_settings.get('DisplayName', 'TechAfternoon')
@@ -67,18 +151,24 @@ def send_email(smtp_settings, recipient_email, recipient_name, html_content, log
         personalized_html = html_content.replace("{{name}}", recipient_name)
         part = MIMEText(personalized_html, "html", "utf-8")
         message.attach(part)
-        server = _create_smtp_server(smtp_settings['host'], int(smtp_settings['port']), smtp_settings['email'], smtp_settings['password'])
-        server.sendmail(smtp_settings['email'], recipient_email, message.as_string())    
+
+        with _create_smtp_server(smtp_settings['host'], int(smtp_settings['port']), smtp_settings['email'], smtp_settings['password']) as server:
+            server.sendmail(smtp_settings['email'], recipient_email, message.as_string())
 
         if log_level == 'detailed':
-            logging.info(f"{datetime.now()} sent template {template_name} to {recipient_email} succeeded")
+            logging.info(f"Sent template {template_name} to {recipient_email} succeeded")
         return True
 
     except Exception as e:
-        logging.error(f"Failed to send email to {recipient_email}: {e}")
+        logging.error(f"Failed to send email to {recipient_email} from template {template_name}: {e}")
         return False
 
-def main(folder):
+def main(folder: str) -> None:
+    """Dispatches emails to recipients based on the configuration and data in the specified folder.
+
+    Args:
+        folder: The folder containing the configuration file, HTML template, and recipient list.
+    """
     start_time = time.time()
     logging.info(f"Starting email dispatch for folder: {folder}")
 
@@ -92,7 +182,7 @@ def main(folder):
             'subject': config['SMTP']['Subject']
         }
         interval = int(config['Settings']['Interval'])
-        log_level = config['Settings'].get('LogLevel', 'none')
+        log_level = config['Settings']['LogLevel']
         template_name = os.path.basename(folder)
 
         html_content = read_html(folder)
@@ -119,7 +209,7 @@ def main(folder):
         logging.info(f"Email dispatch completed: {success_count} sent, {failure_count} failed. Total time: {elapsed_time:.2f} seconds.")
 
     except Exception as e:
-        logging.error(f"Error during email dispatch: {e}")
+        logging.error(f"Error during email dispatch in folder {folder}: {e}")
 
 if __name__ == "__main__":
     import argparse

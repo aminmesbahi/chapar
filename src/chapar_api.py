@@ -82,6 +82,7 @@ def save_uploaded_files(files, temp_dir):
 @app.route('/api/send', methods=['POST'])
 def send_emails():
     """API endpoint to send emails using uploaded files."""
+    temp_dir = None
     try:
         if not request.files:
             return jsonify({'error': 'No files provided'}), 400
@@ -99,30 +100,41 @@ def send_emails():
         try:
             file_paths = save_uploaded_files(files, temp_dir)
         except ValueError as e:
-            shutil.rmtree(temp_dir)
             return jsonify({'error': str(e)}), 400
         except Exception as e:
-            shutil.rmtree(temp_dir)
             logging.exception("File saving error")
-            return jsonify({'error': 'File processing error'}), 500
+            return jsonify({'error': 'File processing error', 'details': str(e)}), 500
+
+        # Validate email addresses
+        try:
+            validate_recipients_file(file_paths['recipients'])
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
         # Run Chapar email sending process
         try:
-            # Call a new function in chapar.py that takes file paths as arguments
             chapar.send_emails_from_files(file_paths['config'], file_paths['recipients'], file_paths['template'])
             result = {'status': 'success', 'message': 'Emails sent successfully'}
+        except configparser.Error as e:
+            return jsonify({'error': 'Configuration error', 'details': str(e)}), 400
+        except smtplib.SMTPException as e:
+            return jsonify({'error': 'SMTP error', 'details': str(e)}), 500
+        except ValueError as e:
+            return jsonify({'error': 'Validation error', 'details': str(e)}), 400
         except Exception as e:
             logging.error(f"Error during email dispatch: {e}")
-            result = {'status': 'error', 'message': str(e)}
-
-        # Cleanup
-        shutil.rmtree(temp_dir)
+            return jsonify({'status': 'error', 'message': str(e)}), 500
 
         return jsonify(result)
 
     except Exception as e:
         logging.exception("Unexpected error")
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+    
+    finally:
+        # Ensure cleanup happens even if an exception occurs
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
 @app.route('/api/health', methods=['GET'])
 def health_check():

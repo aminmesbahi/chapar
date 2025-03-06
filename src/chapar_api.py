@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 import os
+import re
 import chapar
 import configparser
 import tempfile
@@ -19,14 +20,35 @@ ALLOWED_EXTENSIONS = {'html', 'csv', 'ini'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+def validate_email(email):
+    """Validates an email address format."""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def validate_recipients_file(filepath):
+    """Validates email addresses in the recipients file."""
+    invalid_emails = []
+    with open(filepath, 'r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            email = row.get('email', '').strip()
+            if email and not validate_email(email):
+                invalid_emails.append(email)
+    
+    if invalid_emails:
+        raise ValueError(f"Invalid email addresses found: {', '.join(invalid_emails[:5])}" +
+                        (f" and {len(invalid_emails)-5} more" if len(invalid_emails) > 5 else ""))
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def validate_file_content(filepath, expected_mime):
+def validate_file_content(filepath, expected_mime_types):
     """Validates the file content type using python-magic."""
     mime = magic.Magic(mime=True).from_file(filepath)
-    if mime != expected_mime:
-        raise ValueError(f"Invalid file content type. Expected {expected_mime}, got {mime}")
+    # Accept any of the expected mime types
+    if not any(mime.startswith(expected) for expected in expected_mime_types):
+        raise ValueError(f"Invalid file content type. Expected one of {expected_mime_types}, got {mime}")
+
 
 def save_uploaded_files(files, temp_dir):
     """Saves uploaded files to a temporary directory and validates them."""
@@ -51,11 +73,9 @@ def save_uploaded_files(files, temp_dir):
         file.save(filepath)
         file_paths[key] = filepath
 
-    # Validate content
-    validate_file_content(file_paths['template'], 'text/html')
-    # You might need to adjust the expected mime types
-    validate_file_content(file_paths['recipients'], 'text/csv')
-    validate_file_content(file_paths['config'], 'text/plain')
+    validate_file_content(file_paths['template'], ['text/html'])
+    validate_file_content(file_paths['recipients'], ['text/csv', 'text/plain'])
+    validate_file_content(file_paths['config'], ['text/plain', 'text/x-ini'])
 
     return file_paths
 

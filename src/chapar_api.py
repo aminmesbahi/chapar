@@ -7,7 +7,9 @@ import configparser
 import tempfile
 import shutil
 import logging
-import magic  # Import python-magic
+import magic
+from flask import send_from_directory, render_template
+import csv
 
 app = Flask(__name__)
 
@@ -78,6 +80,39 @@ def save_uploaded_files(files, temp_dir):
     validate_file_content(file_paths['config'], ['text/plain', 'text/x-ini'])
 
     return file_paths
+
+
+@app.route('/')
+def index():
+    return send_from_directory('static', 'index.html')
+
+@app.route('/templates/<template_folder>')
+def get_template(template_folder):
+    """Endpoint to provide template files for front-end use"""
+    template_path = os.path.join('src', template_folder)
+    
+    if not os.path.exists(template_path):
+        return jsonify({'error': 'Template not found'}), 404
+        
+    try:
+        # Read template files
+        with open(os.path.join(template_path, 'email_template.html'), 'r', encoding='utf-8') as f:
+            html_content = f.read()
+            
+        with open(os.path.join(template_path, 'config.ini'), 'r', encoding='utf-8') as f:
+            config_content = f.read()
+            
+        with open(os.path.join(template_path, 'recipients.csv'), 'r', encoding='utf-8') as f:
+            csv_content = f.read()
+            
+        return jsonify({
+            'html': html_content,
+            'config': config_content,
+            'csv': csv_content
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
 
 @app.route('/api/send', methods=['POST'])
 def send_emails():

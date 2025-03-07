@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapar - Email Dispatcher</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <style>
+        .file-info {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        .logo {
+            max-height: 60px;
+        }
+        .feature-icon {
+            font-size: 1.5rem;
+            color: #0d6efd;
+            margin-right: 0.5rem;
+        }
+        .api-status {
+            transition: all 0.3s ease-in-out;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        [hx-requesting] .loading-spinner {
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <span class="ms-2">Chapar Email Dispatcher</span>
+                <small class="ms-2 text-white-50">(چاپار)</small>
+            </a>
+            <div>
+                <span class="badge bg-light text-dark" 
+                      hx-get="/api/health" 
+                      hx-trigger="load, every 30s" 
+                      hx-target="#api-status"
+                      hx-indicator="#api-status-spinner">
+                    API Status: <span id="api-status">Checking...</span>
+                    <span id="api-status-spinner" class="spinner-border spinner-border-sm loading-spinner" role="status"></span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="row mb-5">
+            <div class="col-lg-8 mx-auto">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="card-title mb-0">Send Personalized Emails</h5>
+                    </div>
+                    <div class="card-body">
+                        <form hx-post="/api/send" 
+                              hx-encoding="multipart/form-data" 
+                              hx-target="#result" 
+                              hx-indicator="#submit-spinner"
+                              hx-swap="innerHTML">
+                            
+                            <div class="mb-4">
+                                <label for="template" class="form-label">HTML Email Template</label>
+                                <input type="file" class="form-control" id="template" name="template" accept=".html" required>
+                                <div class="file-info mt-1">
+                                    <strong>Required:</strong> HTML file with {{name}} placeholder for personalization
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="recipients" class="form-label">Recipients CSV File</label>
+                                <input type="file" class="form-control" id="recipients" name="recipients" accept=".csv" required>
+                                <div class="file-info mt-1">
+                                    <strong>Required:</strong> CSV with 'email' and 'name' columns
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="config" class="form-label">Configuration INI File</label>
+                                <input type="file" class="form-control" id="config" name="config" accept=".ini" required>
+                                <div class="file-info mt-1">
+                                    <strong>Required:</strong> INI file with SMTP and Settings sections
+                                </div>
+                                <div class="accordion mt-2" id="configHelp">
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#configExample">
+                                                Sample Configuration File
+                                            </button>
+                                        </h2>
+                                        <div id="configExample" class="accordion-collapse collapse" data-bs-parent="#configHelp">
+                                            <div class="accordion-body">
+                                                <pre class="bg-light p-3 rounded small">[SMTP]
+Host = smtp.example.com
+Port = 587
+Email = your_email@example.com
+Password = your_password
+Subject = Your Subject Here
+DisplayName = Your Name
+
+[Settings]
+Interval = 0
+LogLevel = detailed  # Options: none, job, detailed</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary" id="submit-btn">
+                                    <span>Send Emails</span>
+                                    <span id="submit-spinner" class="spinner-border spinner-border-sm ms-2 loading-spinner" role="status"></span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div id="result" class="mt-4"></div>
+            </div>
+        </div>
+
+        <div class="row mt-5">
+            <div class="col-lg-8 mx-auto">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="card-title mb-0">Featured Templates</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-header">LTR Template</div>
+                                    <div class="card-body">
+                                        <p>Left-to-right email template with modern responsive design.</p>
+                                    </div>
+                                    <div class="card-footer bg-white">
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="loadTemplate('newsletter0-ltr')">Use Template</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-header">RTL Template</div>
+                                    <div class="card-body">
+                                        <p>Right-to-left email template for languages like Arabic, Persian, Hebrew, etc.</p>
+                                    </div>
+                                    <div class="card-footer bg-white">
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="loadTemplate('newsletter0-rtl')">Use Template</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-header">LTR Minimal</div>
+                                    <div class="card-body">
+                                        <p>Simple left-to-right email template with minimal styling.</p>
+                                    </div>
+                                    <div class="card-footer bg-white">
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="loadTemplate('newsletter0-ltr-minimal')">Use Template</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-header">RTL Minimal</div>
+                                    <div class="card-body">
+                                        <p>Simple right-to-left email template with minimal styling.</p>
+                                    </div>
+                                    <div class="card-footer bg-white">
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="loadTemplate('newsletter0-rtl-minimal')">Use Template</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="py-3 mt-5 bg-dark text-white-50">
+        <div class="container text-center">
+            <p class="mb-1">Chapar (چاپار) - Python-based Email Dispatcher</p>
+            <p class="small mb-0">
+                <a href="https://github.com/aminmesbahi/chapar" class="text-white-50">GitHub</a> | 
+                <a href="http://localhost:5000/api/health" class="text-white-50">API</a>
+            </p>
+        </div>
+    </footer>
+
+    <!-- Templates for result messages -->
+    <template id="success-template">
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <h4 class="alert-heading">Success!</h4>
+            <p>Emails have been sent successfully.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </template>
+
+    <template id="error-template">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <h4 class="alert-heading">Error</h4>
+            <p class="error-message"></p>
+            <p class="error-details small"></p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Handle API health response
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            if (event.detail.target.id === 'api-status') {
+                const status = event.detail.target.textContent;
+                if (status === 'healthy') {
+                    event.detail.target.classList.add('text-success');
+                    event.detail.target.classList.remove('text-danger');
+                } else {
+                    event.detail.target.classList.add('text-danger');
+                    event.detail.target.classList.remove('text-success');
+                }
+            }
+        });
+
+        // Handle API response for send emails
+        document.body.addEventListener('htmx:afterOnLoad', function(event) {
+            if (event.detail.xhr.status === 200 && event.detail.target.id === 'result') {
+                try {
+                    const response = JSON.parse(event.detail.xhr.responseText);
+                    
+                    if (response.status === 'success') {
+                        const template = document.getElementById('success-template').content.cloneNode(true);
+                        event.detail.target.innerHTML = '';
+                        event.detail.target.appendChild(template);
+                    } else if (response.status === 'error' || response.error) {
+                        const template = document.getElementById('error-template').content.cloneNode(true);
+                        const message = response.error || response.message || 'An error occurred';
+                        const details = response.details || '';
+                        
+                        template.querySelector('.error-message').textContent = message;
+                        template.querySelector('.error-details').textContent = details;
+                        
+                        event.detail.target.innerHTML = '';
+                        event.detail.target.appendChild(template);
+                    }
+                } catch (e) {
+                    console.error("Error parsing response", e);
+                }
+            }
+        });
+
+        // Function to load template files from server template folders
+        function loadTemplate(templateFolder) {
+            fetch(`/templates/${templateFolder}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch template');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    alert(`Template ${templateFolder} would be loaded here. This requires additional server-side implementation.`);
+                })
+                .catch(error => {
+                    console.error('Error loading template:', error);
+                    document.getElementById('result').innerHTML = `
+                        <div class="alert alert-warning">
+                            <h4 class="alert-heading">Template Loading</h4>
+                            <p>To enable template loading, add a route in chapar_api.py to serve templates:</p>
+                            <pre class="bg-light p-3 rounded small">@app.route('/templates/&lt;template_folder&gt;')
+def get_template(template_folder):
+    # Implementation to serve template files
+    pass</pre>
+                        </div>
+                    `;
+                });
+        }
+    </script>
+</body>
+</html>

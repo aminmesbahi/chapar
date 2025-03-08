@@ -28,6 +28,9 @@
         [hx-requesting] .loading-spinner {
             display: inline-block;
         }
+        .tab-content {
+            padding-top: 1.5rem;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -58,44 +61,60 @@
                         <h5 class="card-title mb-0">Send Personalized Emails</h5>
                     </div>
                     <div class="card-body">
-                        <form hx-post="/api/send" 
-                              hx-encoding="multipart/form-data" 
-                              hx-target="#result" 
-                              hx-indicator="#submit-spinner"
-                              hx-swap="innerHTML">
-                            
-                            <div class="mb-4">
-                                <label for="template" class="form-label">HTML Email Template</label>
-                                <input type="file" class="form-control" id="template" name="template" accept=".html" required>
-                                <div class="file-info mt-1">
-                                    <strong>Required:</strong> HTML file with {{name}} placeholder for personalization
-                                </div>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <label for="recipients" class="form-label">Recipients CSV File</label>
-                                <input type="file" class="form-control" id="recipients" name="recipients" accept=".csv" required>
-                                <div class="file-info mt-1">
-                                    <strong>Required:</strong> CSV with 'email' and 'name' columns
-                                </div>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <label for="config" class="form-label">Configuration INI File</label>
-                                <input type="file" class="form-control" id="config" name="config" accept=".ini" required>
-                                <div class="file-info mt-1">
-                                    <strong>Required:</strong> INI file with SMTP and Settings sections
-                                </div>
-                                <div class="accordion mt-2" id="configHelp">
-                                    <div class="accordion-item">
-                                        <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#configExample">
-                                                Sample Configuration File
-                                            </button>
-                                        </h2>
-                                        <div id="configExample" class="accordion-collapse collapse" data-bs-parent="#configHelp">
-                                            <div class="accordion-body">
-                                                <pre class="bg-light p-3 rounded small">[SMTP]
+                        <ul class="nav nav-tabs" id="emailMethodTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload-tab-pane" type="button" role="tab" aria-controls="upload-tab-pane" aria-selected="true">Upload Files</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="existing-tab" data-bs-toggle="tab" data-bs-target="#existing-tab-pane" type="button" role="tab" aria-controls="existing-tab-pane" aria-selected="false"
+                                        hx-get="/api/templates"
+                                        hx-trigger="click once"
+                                        hx-target="#template-list"
+                                        hx-indicator="#templates-spinner">Use Existing Template</button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content" id="emailMethodTabsContent">
+                            <!-- Upload Files Tab -->
+                            <div class="tab-pane fade show active" id="upload-tab-pane" role="tabpanel" aria-labelledby="upload-tab" tabindex="0">
+                                <form hx-post="/api/send" 
+                                      hx-encoding="multipart/form-data" 
+                                      hx-target="#result" 
+                                      hx-indicator="#submit-spinner"
+                                      hx-swap="innerHTML">
+                                    
+                                    <div class="mb-4">
+                                        <label for="template" class="form-label">HTML Email Template</label>
+                                        <input type="file" class="form-control" id="template" name="template" accept=".html" required>
+                                        <div class="file-info mt-1">
+                                            <strong>Required:</strong> HTML file with {{name}} placeholder for personalization
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <label for="recipients" class="form-label">Recipients CSV File</label>
+                                        <input type="file" class="form-control" id="recipients" name="recipients" accept=".csv" required>
+                                        <div class="file-info mt-1">
+                                            <strong>Required:</strong> CSV with 'email' and 'name' columns
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <label for="config" class="form-label">Configuration INI File</label>
+                                        <input type="file" class="form-control" id="config" name="config" accept=".ini" required>
+                                        <div class="file-info mt-1">
+                                            <strong>Required:</strong> INI file with SMTP and Settings sections
+                                        </div>
+                                        <div class="accordion mt-2" id="configHelp">
+                                            <div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#configExample">
+                                                        Sample Configuration File
+                                                    </button>
+                                                </h2>
+                                                <div id="configExample" class="accordion-collapse collapse" data-bs-parent="#configHelp">
+                                                    <div class="accordion-body">
+                                                        <pre class="bg-light p-3 rounded small">[SMTP]
 Host = smtp.example.com
 Port = 587
 Email = your_email@example.com
@@ -106,19 +125,42 @@ DisplayName = Your Name
 [Settings]
 Interval = 0
 LogLevel = detailed  # Options: none, job, detailed</pre>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                    
+                                    <div class="d-grid gap-2">
+                                        <button type="submit" class="btn btn-primary" id="submit-btn">
+                                            <span>Send Emails</span>
+                                            <span id="submit-spinner" class="spinner-border spinner-border-sm ms-2 loading-spinner" role="status"></span>
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
                             
-                            <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-primary" id="submit-btn">
-                                    <span>Send Emails</span>
-                                    <span id="submit-spinner" class="spinner-border spinner-border-sm ms-2 loading-spinner" role="status"></span>
-                                </button>
+                            <!-- Existing Templates Tab -->
+                            <div class="tab-pane fade" id="existing-tab-pane" role="tabpanel" aria-labelledby="existing-tab" tabindex="0">
+                                <div class="text-center mb-3" id="templates-spinner-container">
+                                    <div class="spinner-border text-primary" role="status" id="templates-spinner">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                
+                                <div id="template-list" class="list-group mb-4">
+                                    <!-- Templates will be loaded here -->
+                                </div>
+                                
+                                <div class="text-center mt-4">
+                                    <button id="run-template-btn" class="btn btn-primary" disabled
+                                            onclick="runSelectedTemplate()">
+                                        <span>Send Selected Template</span>
+                                        <span id="run-template-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+                                    </button>
+                                </div>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -220,6 +262,9 @@ LogLevel = detailed  # Options: none, job, detailed</pre>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // Store selected template
+        let selectedTemplate = null;
+        
         // Handle API health response
         document.body.addEventListener('htmx:afterSwap', function(event) {
             if (event.detail.target.id === 'api-status') {
@@ -230,6 +275,46 @@ LogLevel = detailed  # Options: none, job, detailed</pre>
                 } else {
                     event.detail.target.classList.add('text-danger');
                     event.detail.target.classList.remove('text-success');
+                }
+            }
+            
+            // Handle template list response
+            if (event.detail.target.id === 'template-list') {
+                const templateList = document.getElementById('template-list');
+                if (templateList.innerHTML.trim() === '') {
+                    templateList.innerHTML = '<div class="alert alert-info">No template folders found with required files (email_template.html, recipients.csv, config.ini)</div>';
+                }
+            }
+        });
+
+        // Handle API response for template list
+        document.body.addEventListener('htmx:beforeSwap', function(event) {
+            if (event.detail.target.id === 'template-list') {
+                try {
+                    const templates = JSON.parse(event.detail.xhr.responseText);
+                    if (!Array.isArray(templates) || templates.length === 0) {
+                        event.detail.shouldSwap = true;
+                        return;
+                    }
+                    
+                    let html = '';
+                    templates.forEach(template => {
+                        html += `
+                            <a href="#" class="list-group-item list-group-item-action template-item" 
+                               data-template="${template.name}" onclick="selectTemplate('${template.name}')">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <h5 class="mb-1">${template.name}</h5>
+                                    <small class="text-muted">Template</small>
+                                </div>
+                                <p class="mb-1">${template.description}</p>
+                            </a>
+                        `;
+                    });
+                    
+                    event.detail.shouldSwap = true;
+                    event.detail.target.innerHTML = html;
+                } catch (e) {
+                    console.error("Error processing templates", e);
                 }
             }
         });
@@ -261,6 +346,87 @@ LogLevel = detailed  # Options: none, job, detailed</pre>
             }
         });
 
+        // Function to select a template
+        function selectTemplate(templateName) {
+            // Clear previous selection
+            document.querySelectorAll('.template-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Highlight selected item
+            const selectedItem = document.querySelector(`[data-template="${templateName}"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('active');
+            }
+            
+            // Store selected template
+            selectedTemplate = templateName;
+            
+            // Enable run button
+            document.getElementById('run-template-btn').disabled = false;
+        }
+
+        // Function to run selected template
+        function runSelectedTemplate() {
+            if (!selectedTemplate) {
+                return;
+            }
+            
+            // Show spinner
+            const spinner = document.getElementById('run-template-spinner');
+            spinner.classList.remove('d-none');
+            
+            // Disable button
+            document.getElementById('run-template-btn').disabled = true;
+            
+            // Call API to run template
+            fetch('/api/run-template', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ template: selectedTemplate })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Process response
+                const resultContainer = document.getElementById('result');
+                
+                if (data.status === 'success') {
+                    const template = document.getElementById('success-template').content.cloneNode(true);
+                    resultContainer.innerHTML = '';
+                    resultContainer.appendChild(template);
+                } else {
+                    const template = document.getElementById('error-template').content.cloneNode(true);
+                    const message = data.error || data.message || 'An error occurred';
+                    const details = data.details || '';
+                    
+                    template.querySelector('.error-message').textContent = message;
+                    template.querySelector('.error-details').textContent = details;
+                    
+                    resultContainer.innerHTML = '';
+                    resultContainer.appendChild(template);
+                }
+                
+                // Scroll to result
+                resultContainer.scrollIntoView({ behavior: 'smooth' });
+            })
+            .catch(error => {
+                console.error("Error running template:", error);
+                document.getElementById('result').innerHTML = `
+                    <div class="alert alert-danger">
+                        <h4 class="alert-heading">Error</h4>
+                        <p>Failed to run template: ${error.message}</p>
+                    </div>
+                `;
+            })
+            .finally(() => {
+                // Hide spinner and re-enable button
+                spinner.classList.add('d-none');
+                document.getElementById('run-template-btn').disabled = false;
+            });
+        }
+
         // Function to load template files from server template folders
         function loadTemplate(templateFolder) {
             fetch(`/templates/${templateFolder}`)
@@ -271,7 +437,19 @@ LogLevel = detailed  # Options: none, job, detailed</pre>
                     return response.json();
                 })
                 .then(data => {
-                    alert(`Template ${templateFolder} would be loaded here. This requires additional server-side implementation.`);
+                    // Switch to the "Use Existing Template" tab
+                    document.querySelector('#existing-tab').click();
+                    
+                    // Select the template
+                    selectTemplate(templateFolder);
+                    
+                    // Show a notification
+                    document.getElementById('result').innerHTML = `
+                        <div class="alert alert-info">
+                            <h4 class="alert-heading">Template Selected</h4>
+                            <p>Template "${templateFolder}" has been selected. Click "Send Selected Template" to proceed.</p>
+                        </div>
+                    `;
                 })
                 .catch(error => {
                     console.error('Error loading template:', error);

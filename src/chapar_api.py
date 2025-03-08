@@ -86,6 +86,90 @@ def save_uploaded_files(files, temp_dir):
 def index():
     return send_from_directory('static', 'index.html')
 
+
+@app.route('/api/templates', methods=['GET'])
+def list_templates():
+    """API endpoint to list available template folders."""
+    try:
+        templates = []
+        # Scan the top-level directories in the src folder
+        for item in os.listdir('.'):
+            if os.path.isdir(item):
+                # Check if directory contains required files
+                has_html = os.path.exists(os.path.join(item, 'email_template.html'))
+                has_csv = os.path.exists(os.path.join(item, 'recipients.csv'))
+                has_ini = os.path.exists(os.path.join(item, 'config.ini'))
+                
+                if has_html and has_csv and has_ini:
+                    templates.append({
+                        'name': item,
+                        'description': get_template_description(item)
+                    })
+        
+        # Sort templates alphabetically
+        templates.sort(key=lambda x: x['name'])
+        return jsonify(templates)
+    except Exception as e:
+        logging.exception("Error listing templates")
+        return jsonify({'error': str(e)}), 500
+
+def get_template_description(folder):
+    """Extract a description for the template from its files."""
+    try:
+        # Try to get description from config.ini
+        config = configparser.ConfigParser()
+        config.read(os.path.join(folder, 'config.ini'), encoding='utf-8')
+        if config.has_option('Settings', 'Description'):
+            return config['Settings']['Description']
+        
+        # Fallback: Use the subject from config
+        if config.has_section('SMTP') and config.has_option('SMTP', 'Subject'):
+            return config['SMTP']['Subject']
+        
+        # Last resort: Use folder name
+        return folder
+    except:
+        return folder
+
+@app.route('/api/run-template', methods=['POST'])
+def run_template():
+    """API endpoint to run an existing template folder."""
+    try:
+        data = request.json
+        if not data or 'template' not in data:
+            return jsonify({'error': 'No template specified'}), 400
+        
+        template_folder = data['template']
+        template_path = os.path.join('.', template_folder)
+        
+        # Verify template folder exists and has required files
+        if not os.path.isdir(template_path):
+            return jsonify({'error': 'Template folder not found'}), 404
+        
+        required_files = {
+            'email_template.html': os.path.join(template_path, 'email_template.html'),
+            'recipients.csv': os.path.join(template_path, 'recipients.csv'),
+            'config.ini': os.path.join(template_path, 'config.ini')
+        }
+        
+        for name, path in required_files.items():
+            if not os.path.exists(path):
+                return jsonify({'error': f'Missing required file: {name}'}), 400
+        
+        # Execute the email sending process
+        try:
+            chapar.main(template_folder)
+            result = {'status': 'success', 'message': 'Emails sent successfully'}
+        except Exception as e:
+            logging.error(f"Error during email dispatch: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logging.exception("Unexpected error")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
 @app.route('/templates/<template_folder>')
 def get_template(template_folder):
     """Endpoint to provide template files for front-end use"""

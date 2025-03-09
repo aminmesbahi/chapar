@@ -2,192 +2,109 @@
 
 Chapar (چاپار) is a Python-based tool for sending personalized HTML emails effortlessly. Inspired by the Persian word "Chapar," which refers to the ancient postal couriers who swiftly delivered messages across distances, this project modernizes the art of communication, enabling efficient and customizable email delivery for your needs.
 
-## Usage
+## Features
 
-Run the script with the folder containing your `email_template.html`, `recipients.csv`, and optionally a `config.ini`:
+- **Web Interface**: Modern, responsive UI built with Bootstrap 5.3.x and HTMX
+- **API Support**: RESTful API for sending emails and managing templates
+- **Template Management**: Use existing templates or upload your own
+- **Personalization**: Customize emails with recipient names
+- **Secure Connections**: Supports SSL and TLS encryption
+- **RTL & LTR Support**: Templates for both right-to-left and left-to-right languages
+- **Send Control**: Configure intervals between email sends
+- **Validation**: File type, email format, and content validation
+- **Docker Support**: Easy deployment with Docker
 
-```bash
-python chapar.py newsletter0-ltr
-```
+## Quick Start
 
-## ⚠️ This document, samples, and features will be improved! soon!
+### CLI Usage
 
-### Current features
-- Supports only secure connections (SSL and TLS)
-- minimal template and responsive modern templates (Just replace your texts)
-- templates in RTL and LTR format
-- interval between sends
-
-
-# Docker Usage Guide for Chapar
-
-This guide explains how to use Chapar with Docker for sending personalized HTML emails.
-
-## Building the Docker Image
-
-Build the Docker image from the project root directory:
+Run the script with a folder containing your `email_template.html`, `recipients.csv`, and `config.ini`:
 
 ```bash
-docker build -t chapar .
+python src/chapar.py newsletter0-ltr
 ```
-Collecting workspace information
-
-I'll help create a Dockerfile and docker-usage.md file for the Chapar email sending application. Here's what we'll create:
-
-First, let's create a `Dockerfile`:
-
-```dockerfile
-# Use Python 3.9 slim image
-FROM python:3.9-slim
-
-# Set working directory
-WORKDIR /app
-
-# Copy requirements (if you have any external dependencies)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the application code and templates
-COPY src/ .
-
-# Set environment variables for encoding
-ENV PYTHONIOENCODING=utf8
-ENV LANG=C.UTF-8
-
-# Command to run the application
-ENTRYPOINT ["python", "chapar.py"]
-```
-
-Now, let's create a `requirements.txt` file (place it in the root directory):
-
-```text
-configparser>=5.0.0
-```
-
-Here's the content for `docker-usage.md`:
-
-```markdown
-# Docker Usage Guide for Chapar
-
-This guide explains how to use Chapar with Docker for sending personalized HTML emails.
-
-## Building the Docker Image
-
-Build the Docker image from the project root directory:
-
+## Web Interface
+Start the web server:
 ```bash
-docker build -t chapar .
+python src/chapar_api.py
 ```
+Then open http://localhost:5000 in your browser to access the web interface.
 
-## Running Chapar with Docker
+### Web Interface
+The web interface allows you to:
 
-### Basic Usage
+Upload Files: Upload your HTML template, recipients CSV, and config INI files
+Use Existing Templates: Select from available template folders
+Preview Templates: View sample templates (LTR, RTL, minimal versions)
+Send Emails: Dispatch emails with a single click
+### API Endpoints
+* GET /api/health: Health check endpoint
+* GET /api/templates: List available templates
+* POST /api/send: Send emails using uploaded files
+* POST /api/run-template: Run an existing template
+* GET /templates/<template_folder>: Get files for a specific template
+### Template Structure
+Each template folder should contain:
 
-Run Chapar by mounting your newsletter folder and specifying the folder name:
-
-```bash
-docker run -v $(pwd)/src/newsletter0-ltr:/app/newsletter0-ltr chapar newsletter0-ltr
+* email_template.html: HTML email template with {{name}} placeholders
+* recipients.csv: CSV file with email and name columns
+* config.ini: Configuration file with SMTP and Settings sections
+### Configuration File (config.ini)
 ```
-
-### Directory Structure
-
-Your mounted directory should contain:
-- email_template.html: Your HTML email template
-- recipients.csv: CSV file with email recipients
-- config.ini: SMTP and other configuration settings
-
-### Example Commands
-
-1. For LTR (Left-to-Right) template:
-```bash
-docker run -v $(pwd)/src/newsletter0-ltr:/app/newsletter0-ltr chapar newsletter0-ltr
-```
-
-2. For RTL (Right-to-Left) template:
-```bash
-docker run -v $(pwd)/src/newsletter0-rtl:/app/newsletter0-rtl chapar newsletter0-rtl
-```
-
-### Configuration
-
-Make sure your `config.ini` file in the mounted directory contains proper SMTP settings:
-
-```ini
 [SMTP]
 Host = smtp.example.com
-Port = 587
+Port = 587  # 587 for TLS, 465 for SSL
 Email = your_email@example.com
 Password = your_password
 Subject = Your Subject Here
 DisplayName = Your Name
 
 [Settings]
-Interval = 5
+Interval = 0  # Seconds between sending emails
+LogLevel = detailed  # Options: none, job, detailed
 ```
+### Docker Usage
+Building the Docker Image
+```
+docker build -t chapar .
+```
+Running the CLI Version
+```
+docker run -v $(pwd)/src/newsletter0-ltr:/app/newsletter0-ltr chapar newsletter0-ltr
+```
+Running the Web Server
+```
+docker run -p 5000:5000 -v $(pwd)/src:/app chapar python chapar_api.py
+```
+Dependencies
+* Python 3.9+
+* Flask (for API)
+* Werkzeug
+* configparser
+* python-magic (for file validation)
+* Bootstrap 5.3.x (included via CDN)
+* HTMX (included via CDN)
+### Installation
+1. Clone the repository:
+```
+git clone https://github.com/aminmesbahi/chapar.git
+cd chapar
+```
+2. Install requirements:
+```
+pip install -r src/requirements.txt
+```
+Running Tests
+1. Install REST Client extension in VS Code
 
+2. Open chapar_api_test.http in VS Code
+
+Cl3. ick "Send Request" above each test case to execute:
+
+* Health check endpoint
+* Email sending with valid files
+* Error handling scenarios
 ### Security Notes
-
-- Always use secure SMTP connections (Port 587 for TLS or 465 for SSL)
-- Keep your SMTP credentials secure and never commit them to version control
-- Consider using environment variables for sensitive information
-
-## Troubleshooting
-
-1. If you encounter encoding issues:
-   - Ensure all files are saved with UTF-8 encoding
-   - The Docker container is configured with UTF-8 support by default
-
-2. For permission issues:
-   - Check the file permissions in your mounted directory
-   - Ensure the container has read access to all required files
-
-3. For network issues:
-   - Verify your SMTP server settings
-   - Check if your host allows outgoing SMTP connections
-
----
-This Docker setup allows you to:
-1. Package the Chapar application in a container
-2. Run it with different newsletter templates
-3. Mount local directories containing your email templates and configurations
-4. Handle both RTL and LTR templates properly with UTF-8 support
-
-
-
-
-### Running Tests
-
-1. Install REST Client extension in VS Code:
-
-
-2. Create test sample files in `/test/samples/`:
-- Copy your template, recipients, and config files
-- Modify with test data
-
-3. Open `test/api.http` in VS Code
-
-4. Click "Send Request" above each test case to execute:
-- Health check endpoint
-- Email sending with valid files
-- Error handling scenarios
-
-### Sample Test Cases
-
-1. Health Check:
-```http
-GET http://localhost:5000/api/health
-```
-
-2. Send Emails:
-
-```
-POST http://localhost:5000/api/send
-Content-Type: multipart/form-data
-```
-3. View responses in the split pane that opens in VS Code
-
-### Roadmap
-- docker support
-- expose REST API
-- more
-
+* Always use secure SMTP connections (Port 587 for TLS or 465 for SSL)
+* Keep your SMTP credentials secure and never commit them to version control
+* Consider using environment variables for sensitive information

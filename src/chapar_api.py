@@ -91,35 +91,51 @@ def index():
 def list_templates():
     """API endpoint to list available template folders."""
     try:
+        logging.info("Accessing /api/templates endpoint")
         templates = []
-        # Scan the top-level directories in the src folder
-        for item in os.listdir('.'):
-            if os.path.isdir(item):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        logging.info(f"Base directory: {base_dir}")
+        
+        # List all items in the directory for debugging
+        all_items = os.listdir(base_dir)
+        logging.info(f"All items in directory: {all_items}")
+        
+        for item in all_items:
+            item_path = os.path.join(base_dir, item)
+            if os.path.isdir(item_path):
                 # Check if directory contains required files
-                has_html = os.path.exists(os.path.join(item, 'email_template.html'))
-                has_csv = os.path.exists(os.path.join(item, 'recipients.csv'))
-                has_ini = os.path.exists(os.path.join(item, 'config.ini'))
+                has_html = os.path.exists(os.path.join(item_path, 'email_template.html'))
+                has_csv = os.path.exists(os.path.join(item_path, 'recipients.csv'))
+                has_ini = os.path.exists(os.path.join(item_path, 'config.ini'))
+                
+                logging.info(f"Directory {item}: has_html={has_html}, has_csv={has_csv}, has_ini={has_ini}")
                 
                 if has_html and has_csv and has_ini:
-                    templates.append({
-                        'name': item,
-                        'description': get_template_description(item)
-                    })
+                    try:
+                        desc = get_template_description(item_path)
+                        templates.append({
+                            'name': item,
+                            'description': desc
+                        })
+                    except Exception as e:
+                        logging.exception(f"Error processing template {item}: {e}")
         
         # Sort templates alphabetically
         templates.sort(key=lambda x: x['name'])
+        logging.info(f"Returning {len(templates)} templates")
         return jsonify(templates)
     except Exception as e:
-        logging.exception("Error listing templates")
+        logging.exception(f"Error listing templates: {e}")
         return jsonify({'error': str(e)}), 500
-
-def get_template_description(folder):
+    
+    
+def get_template_description(folder_path):
     """Extract a description for the template from its files."""
     try:
         # Try to get description from config.ini
         config = configparser.ConfigParser()
-        config.read(os.path.join(folder, 'config.ini'), encoding='utf-8')
-        if config.has_option('Settings', 'Description'):
+        config.read(os.path.join(folder_path, 'config.ini'), encoding='utf-8')
+        if config.has_section('Settings') and config.has_option('Settings', 'Description'):
             return config['Settings']['Description']
         
         # Fallback: Use the subject from config
@@ -127,9 +143,10 @@ def get_template_description(folder):
             return config['SMTP']['Subject']
         
         # Last resort: Use folder name
-        return folder
-    except:
-        return folder
+        return os.path.basename(folder_path)
+    except Exception as e:
+        logging.exception(f"Error getting template description: {e}")
+        return os.path.basename(folder_path)
 
 @app.route('/api/run-template', methods=['POST'])
 def run_template():
@@ -140,7 +157,8 @@ def run_template():
             return jsonify({'error': 'No template specified'}), 400
         
         template_folder = data['template']
-        template_path = os.path.join('.', template_folder)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(base_dir, template_folder)
         
         # Verify template folder exists and has required files
         if not os.path.isdir(template_path):
@@ -158,7 +176,7 @@ def run_template():
         
         # Execute the email sending process
         try:
-            chapar.main(template_folder)
+            chapar.main(template_path)  # Pass the full path to template folder
             result = {'status': 'success', 'message': 'Emails sent successfully'}
         except Exception as e:
             logging.error(f"Error during email dispatch: {e}")
@@ -169,34 +187,44 @@ def run_template():
     except Exception as e:
         logging.exception("Unexpected error")
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
-
+    
 @app.route('/templates/<template_folder>')
 def get_template(template_folder):
     """Endpoint to provide template files for front-end use"""
-    template_path = os.path.join('src', template_folder)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(base_dir, template_folder)
     
     if not os.path.exists(template_path):
         return jsonify({'error': 'Template not found'}), 404
         
     try:
         # Read template files
-        with open(os.path.join(template_path, 'email_template.html'), 'r', encoding='utf-8') as f:
+        html_path = os.path.join(template_path, 'email_template.html')
+        config_path = os.path.join(template_path, 'config.ini')
+        csv_path = os.path.join(template_path, 'recipients.csv')
+        
+        if not all(os.path.exists(p) for p in [html_path, config_path, csv_path]):
+            return jsonify({'error': 'Template files incomplete'}), 404
+            
+        with open(html_path, 'r', encoding='utf-8') as f:
             html_content = f.read()
             
-        with open(os.path.join(template_path, 'config.ini'), 'r', encoding='utf-8') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             config_content = f.read()
             
-        with open(os.path.join(template_path, 'recipients.csv'), 'r', encoding='utf-8') as f:
+        with open(csv_path, 'r', encoding='utf-8') as f:
             csv_content = f.read()
             
         return jsonify({
             'html': html_content,
             'config': config_content,
-            'csv': csv_content
+            'csv': csv_content,
+            'name': template_folder
         })
     except Exception as e:
+        logging.exception(f"Error reading template: {e}")
         return jsonify({'error': str(e)}), 500
-    
+     
 
 @app.route('/api/send', methods=['POST'])
 def send_emails():
@@ -259,6 +287,30 @@ def send_emails():
 def health_check():
     """API endpoint for health check."""
     return jsonify({'status': 'healthy'})
+
+@app.route('/api/debug', methods=['GET'])
+def debug_info():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    result = {
+        'current_directory': os.getcwd(),
+        'base_directory': base_dir,
+        'directories': []
+    }
+    
+    try:
+        for item in os.listdir(base_dir):
+            item_path = os.path.join(base_dir, item)
+            if os.path.isdir(item_path):
+                result['directories'].append({
+                    'name': item,
+                    'path': item_path,
+                    'files': os.listdir(item_path)[:10]  # First 10 files for brevity
+                })
+    except Exception as e:
+        result['error'] = str(e)
+        
+    return jsonify(result)
+
 
 if __name__ == '__main__':
     # Ensure upload folder exists

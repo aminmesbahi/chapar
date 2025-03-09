@@ -66,11 +66,10 @@
                                 <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload-tab-pane" type="button" role="tab" aria-controls="upload-tab-pane" aria-selected="true">Upload Files</button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="existing-tab" data-bs-toggle="tab" data-bs-target="#existing-tab-pane" type="button" role="tab" aria-controls="existing-tab-pane" aria-selected="false"
-                                        hx-get="/api/templates"
-                                        hx-trigger="click once"
-                                        hx-target="#template-list"
-                                        hx-indicator="#templates-spinner">Use Existing Template</button>
+                                <button class="nav-link" id="existing-tab" data-bs-toggle="tab" data-bs-target="#existing-tab-pane" 
+        type="button" role="tab" aria-controls="existing-tab-pane" aria-selected="false">
+    Use Existing Template
+</button>
                             </li>
                         </ul>
                         
@@ -265,27 +264,23 @@ LogLevel = detailed  # Options: none, job, detailed</pre>
         // Store selected template
         let selectedTemplate = null;
         
-        // Handle API health response
         document.body.addEventListener('htmx:afterSwap', function(event) {
-            if (event.detail.target.id === 'api-status') {
-                const status = event.detail.target.textContent;
-                if (status === 'healthy') {
-                    event.detail.target.classList.add('text-success');
-                    event.detail.target.classList.remove('text-danger');
-                } else {
-                    event.detail.target.classList.add('text-danger');
-                    event.detail.target.classList.remove('text-success');
-                }
-            }
-            
-            // Handle template list response
-            if (event.detail.target.id === 'template-list') {
-                const templateList = document.getElementById('template-list');
-                if (templateList.innerHTML.trim() === '') {
-                    templateList.innerHTML = '<div class="alert alert-info">No template folders found with required files (email_template.html, recipients.csv, config.ini)</div>';
-                }
-            }
-        });
+    if (event.detail.target.id === 'api-status') {
+        const status = event.detail.target.textContent;
+        if (status === 'healthy') {
+            event.detail.target.classList.add('text-success');
+            event.detail.target.classList.remove('text-danger');
+        } else {
+            event.detail.target.classList.add('text-danger');
+            event.detail.target.classList.remove('text-success');
+        }
+    }
+    
+    // This is where the spinner should be hidden after template list loads
+    if (event.detail.target.id === 'template-list') {
+        document.getElementById('templates-spinner').style.display = 'none';
+    }
+});
 
         // Handle API response for template list
         document.body.addEventListener('htmx:beforeSwap', function(event) {
@@ -345,6 +340,49 @@ LogLevel = detailed  # Options: none, job, detailed</pre>
                 }
             }
         });
+
+        // Replace the htmx-based template loading with a regular fetch
+document.getElementById('existing-tab').addEventListener('click', function() {
+    // Show the spinner
+    document.getElementById('templates-spinner').style.display = 'inline-block';
+    
+    // Fetch templates
+    fetch('/api/templates')
+        .then(response => response.json())
+        .then(templates => {
+            const templateList = document.getElementById('template-list');
+            
+            if (!templates || templates.length === 0) {
+                templateList.innerHTML = '<div class="alert alert-info">No template folders found with required files (email_template.html, recipients.csv, config.ini)</div>';
+                return;
+            }
+            
+            let html = '';
+            templates.forEach(template => {
+                html += `
+                    <a href="#" class="list-group-item list-group-item-action template-item" 
+                       data-template="${template.name}" onclick="selectTemplate('${template.name}')">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <h5 class="mb-1">${template.name}</h5>
+                            <small class="text-muted">Template</small>
+                        </div>
+                        <p class="mb-1">${template.description}</p>
+                    </a>
+                `;
+            });
+            
+            templateList.innerHTML = html;
+        })
+        .catch(error => {
+            console.error("Error fetching templates:", error);
+            document.getElementById('template-list').innerHTML = 
+                '<div class="alert alert-danger">Failed to load templates. Check console for details.</div>';
+        })
+        .finally(() => {
+            // Hide the spinner
+            document.getElementById('templates-spinner').style.display = 'none';
+        });
+});
 
         // Function to select a template
         function selectTemplate(templateName) {

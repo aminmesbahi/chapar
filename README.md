@@ -28,6 +28,7 @@ Start the web server:
 ```bash
 python src/chapar_api.py
 ```
+
 Then open http://localhost:5000 in your browser to access the web interface.
 
 ### Web Interface
@@ -37,6 +38,12 @@ Upload Files: Upload your HTML template, recipients CSV, and config INI files
 Use Existing Templates: Select from available template folders
 Preview Templates: View sample templates (LTR, RTL, minimal versions)
 Send Emails: Dispatch emails with a single click
+
+![](./docs/Screenshot-main-ui.png)
+![](./docs/Screenshot-default-templates.png)
+![](./docs/Screenshot-existing-templates.png)
+
+----
 ### API Endpoints
 * GET /api/health: Health check endpoint
 * GET /api/templates: List available templates
@@ -99,7 +106,7 @@ Running Tests
 
 2. Open chapar_api_test.http in VS Code
 
-Cl3. ick "Send Request" above each test case to execute:
+3. click "Send Request" above each test case to execute:
 
 * Health check endpoint
 * Email sending with valid files

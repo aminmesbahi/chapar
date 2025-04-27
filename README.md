@@ -115,3 +115,48 @@ Running Tests
 * Always use secure SMTP connections (Port 587 for TLS or 465 for SSL)
 * Keep your SMTP credentials secure and never commit them to version control
 * Consider using environment variables for sensitive information
+
+## Subscriber CSV Merger
+
+The project includes a utility script [`src/merger.py`](src/merger.py) to merge and deduplicate subscriber CSV files.
+
+### Usage
+
+To merge all subscriber CSV files in the `src/subscribers/` folder (e.g. `000_*.csv`, `001_*.csv`, ...):
+
+```bash
+python src/merger.py src
+```
+
+You can specify a range of files by index (e.g. only `002_*` to `004_*`):
+
+```bash
+python src/merger.py src --start 2 --end 4
+```
+
+### How it works
+
+- Reads all CSV files in the `src/subscribers/` folder matching the index range.
+- Merges rows by email (case-insensitive).
+- For each email, the latest (by Timestamp) row is kept, but if any row for that email has `"true"` for `subscrube` or `subscribe_survey`, the merged result will have `"true"` for that field.
+- Writes the merged result to [`src/subscribers.csv`](src/subscribers.csv).
+
+### Configuration
+
+You can customize column names and file names by editing [`src/merger.ini`](src/merger.ini):
+
+```ini
+[Columns]
+csv_file = subscribers
+output_file = subscribers.csv
+email_column = Email
+updates_column = subscrube
+survey_column = subscribe_survey
+start_index = 000
+end_index = 005
+```
+
+- `start_index` and `end_index` control which files are included (by prefix number).
+- The script will always look for files in the `subscribers` subfolder of the given folder.
+
+---

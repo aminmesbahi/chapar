@@ -57,7 +57,7 @@ def merge_csv(folder, config):
                 timestamp = row.get('Timestamp', '')
                 try:
                     ts = datetime.fromisoformat(timestamp)
-                except Exception:
+                except (ValueError, TypeError):
                     ts = datetime.min
                 if email not in merged or ts > merged[email]['_ts']:
                     merged[email] = {

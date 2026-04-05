@@ -52,6 +52,19 @@ def load_config(folder: str) -> configparser.ConfigParser:
     except ValueError as e:
         raise ValueError(f"Invalid setting in config: {e}")
 
+    env_overrides = {
+        'Host': 'SMTP_HOST',
+        'Port': 'SMTP_PORT',
+        'Email': 'SMTP_EMAIL',
+        'Password': 'SMTP_PASSWORD',
+        'Subject': 'SMTP_SUBJECT',
+        'DisplayName': 'SMTP_DISPLAY_NAME',
+    }
+    for key, env_var in env_overrides.items():
+        value = os.environ.get(env_var)
+        if value is not None:
+            config['SMTP'][key] = value
+
     return config
 
 def read_html(folder: str) -> str:

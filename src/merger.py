@@ -8,7 +8,7 @@ DEFAULT_CONFIG = {
     'csv_file': 'subscribers',
     'output_file': 'subscribers.csv',
     'email_column': 'Email',
-    'updates_column': 'subscrube',
+    'updates_column': 'subscribe',
     'survey_column': 'subscribe_survey',
     'start_index': None,
     'end_index': None

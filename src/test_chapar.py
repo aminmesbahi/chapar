@@ -85,7 +85,7 @@ class TestEmailDispatcher(unittest.TestCase):
         mock_smtp.assert_called_once_with('host', 587, timeout=10)
         mock_smtp.return_value.starttls.assert_called_once()
 
-    @patch('email_dispatcher._create_smtp_server')
+    @patch('chapar._create_smtp_server')
     def test_send_email_success(self, mock_smtp):
         mock_server = MagicMock()
         mock_smtp.return_value = mock_server
@@ -98,7 +98,7 @@ class TestEmailDispatcher(unittest.TestCase):
         self.assertTrue(result)
         mock_server.sendmail.assert_called_once()
 
-    @patch('email_dispatcher._create_smtp_server')
+    @patch('chapar._create_smtp_server')
     def test_send_email_failure(self, mock_smtp):
         mock_smtp.side_effect = Exception("SMTP error")
         smtp_settings = {'host': 'host', 'port': 587, 'email': 'from@example.com',
@@ -107,10 +107,10 @@ class TestEmailDispatcher(unittest.TestCase):
                            '<html></html>', 'none', 'test')
         self.assertFalse(result)
 
-    @patch('email_dispatcher.load_config')
-    @patch('email_dispatcher.read_html')
-    @patch('email_dispatcher.read_csv')
-    @patch('email_dispatcher.send_email')
+    @patch('chapar.load_config')
+    @patch('chapar.read_html')
+    @patch('chapar.read_csv')
+    @patch('chapar.send_email')
     @patch('time.sleep')
     def test_main_success(self, mock_sleep, mock_send, mock_csv, mock_html, mock_config):
         mock_config.return_value = {
@@ -125,7 +125,7 @@ class TestEmailDispatcher(unittest.TestCase):
         main(self.test_folder)
         self.assertEqual(mock_send.call_count, 1)
 
-    @patch('email_dispatcher.load_config')
+    @patch('chapar.load_config')
     def test_main_config_error(self, mock_config):
         mock_config.side_effect = ValueError("Config error")
         with self.assertLogs(level='ERROR') as log:

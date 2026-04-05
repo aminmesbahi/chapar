@@ -88,22 +88,24 @@ class TestEmailDispatcher(unittest.TestCase):
     @patch('chapar._create_smtp_server')
     def test_send_email_success(self, mock_smtp):
         mock_server = MagicMock()
-        mock_smtp.return_value = mock_server
+        mock_smtp.return_value.__enter__ = MagicMock(return_value=mock_server)
+        mock_smtp.return_value.__exit__ = MagicMock(return_value=False)
         smtp_settings = {
             'host': 'host', 'port': 587, 'email': 'from@example.com',
             'password': 'pass', 'subject': 'Test', 'DisplayName': 'Test'
         }
-        result = send_email(smtp_settings, 'to@example.com', 'John', 
+        result = send_email(smtp_settings, mock_server, 'to@example.com', 'John', 
                            '<html>{{name}}</html>', 'detailed', 'test')
         self.assertTrue(result)
         mock_server.sendmail.assert_called_once()
 
     @patch('chapar._create_smtp_server')
     def test_send_email_failure(self, mock_smtp):
-        mock_smtp.side_effect = Exception("SMTP error")
+        mock_server = MagicMock()
+        mock_server.sendmail.side_effect = Exception("SMTP error")
         smtp_settings = {'host': 'host', 'port': 587, 'email': 'from@example.com',
                         'password': 'pass', 'subject': 'Test'}
-        result = send_email(smtp_settings, 'to@example.com', 'John', 
+        result = send_email(smtp_settings, mock_server, 'to@example.com', 'John', 
                            '<html></html>', 'none', 'test')
         self.assertFalse(result)
 
@@ -111,8 +113,9 @@ class TestEmailDispatcher(unittest.TestCase):
     @patch('chapar.read_html')
     @patch('chapar.read_csv')
     @patch('chapar.send_email')
+    @patch('chapar._create_smtp_server')
     @patch('time.sleep')
-    def test_main_success(self, mock_sleep, mock_send, mock_csv, mock_html, mock_config):
+    def test_main_success(self, mock_sleep, mock_smtp_server, mock_send, mock_csv, mock_html, mock_config):
         mock_config.return_value = {
             'SMTP': {'Host': 'host', 'Port': '587', 'Email': 'user', 
                     'Password': 'pass', 'Subject': 'Subj'},
@@ -121,6 +124,9 @@ class TestEmailDispatcher(unittest.TestCase):
         mock_html.return_value = "<html></html>"
         mock_csv.return_value = [{'email': 'a@b.com', 'name': 'Alice'}]
         mock_send.return_value = True
+        mock_server = MagicMock()
+        mock_smtp_server.return_value.__enter__ = MagicMock(return_value=mock_server)
+        mock_smtp_server.return_value.__exit__ = MagicMock(return_value=False)
 
         main(self.test_folder)
         self.assertEqual(mock_send.call_count, 1)

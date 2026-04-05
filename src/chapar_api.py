@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 import os
 import re
+import io
+import smtplib
 import chapar
 import configparser
 import tempfile
@@ -12,6 +14,14 @@ from flask import send_from_directory, render_template
 import csv
 
 app = Flask(__name__)
+
+
+def _safe_template_path(base_dir: str, template_name: str) -> str:
+    resolved_base = os.path.realpath(base_dir)
+    resolved_template = os.path.realpath(os.path.join(base_dir, template_name))
+    if not resolved_template.startswith(resolved_base + os.sep):
+        raise ValueError(f"Invalid template path: {template_name!r}")
+    return resolved_template
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -158,9 +168,11 @@ def run_template():
         
         template_folder = data['template']
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        template_path = os.path.join(base_dir, template_folder)
-        
-        # Verify template folder exists and has required files
+        try:
+            template_path = _safe_template_path(base_dir, template_folder)
+        except ValueError:
+            return jsonify({'error': 'Invalid template path'}), 400
+
         if not os.path.isdir(template_path):
             return jsonify({'error': 'Template folder not found'}), 404
         
@@ -190,31 +202,41 @@ def run_template():
     
 @app.route('/templates/<template_folder>')
 def get_template(template_folder):
-    """Endpoint to provide template files for front-end use"""
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    template_path = os.path.join(base_dir, template_folder)
-    
+    try:
+        template_path = _safe_template_path(base_dir, template_folder)
+    except ValueError:
+        return jsonify({'error': 'Invalid template path'}), 400
+
     if not os.path.exists(template_path):
         return jsonify({'error': 'Template not found'}), 404
-        
+
     try:
-        # Read template files
         html_path = os.path.join(template_path, 'email_template.html')
         config_path = os.path.join(template_path, 'config.ini')
         csv_path = os.path.join(template_path, 'recipients.csv')
-        
+
         if not all(os.path.exists(p) for p in [html_path, config_path, csv_path]):
             return jsonify({'error': 'Template files incomplete'}), 404
-            
+
         with open(html_path, 'r', encoding='utf-8') as f:
             html_content = f.read()
-            
+
         with open(config_path, 'r', encoding='utf-8') as f:
-            config_content = f.read()
-            
+            raw_config = f.read()
+
         with open(csv_path, 'r', encoding='utf-8') as f:
             csv_content = f.read()
-            
+
+        cfg_parser = configparser.ConfigParser()
+        cfg_parser.read_string(raw_config)
+        for sensitive_key in ('password', 'Password'):
+            if cfg_parser.has_section('SMTP') and cfg_parser.has_option('SMTP', sensitive_key):
+                cfg_parser.set('SMTP', sensitive_key, '***REDACTED***')
+        buf = io.StringIO()
+        cfg_parser.write(buf)
+        config_content = buf.getvalue()
+
         return jsonify({
             'html': html_content,
             'config': config_content,
@@ -287,29 +309,6 @@ def send_emails():
 def health_check():
     """API endpoint for health check."""
     return jsonify({'status': 'healthy'})
-
-@app.route('/api/debug', methods=['GET'])
-def debug_info():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    result = {
-        'current_directory': os.getcwd(),
-        'base_directory': base_dir,
-        'directories': []
-    }
-    
-    try:
-        for item in os.listdir(base_dir):
-            item_path = os.path.join(base_dir, item)
-            if os.path.isdir(item_path):
-                result['directories'].append({
-                    'name': item,
-                    'path': item_path,
-                    'files': os.listdir(item_path)[:10]  # First 10 files for brevity
-                })
-    except Exception as e:
-        result['error'] = str(e)
-        
-    return jsonify(result)
 
 
 if __name__ == '__main__':

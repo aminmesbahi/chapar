@@ -1,6 +1,7 @@
 import os
 import smtplib
 import csv
+import html
 import time
 import configparser
 import logging
@@ -198,7 +199,7 @@ def send_email(smtp_settings: Dict[str, str], recipient_email: str, recipient_na
         message["To"] = recipient_email
         message["Subject"] = Header(smtp_settings['subject'], "utf-8")
 
-        personalized_html = html_content.replace("{{name}}", recipient_name)
+        personalized_html = html_content.replace("{{name}}", html.escape(recipient_name))
         part = MIMEText(personalized_html, "html", "utf-8")
         message.attach(part)
 

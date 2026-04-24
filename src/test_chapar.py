@@ -134,9 +134,11 @@ class TestEmailDispatcher(unittest.TestCase):
     @patch('chapar.load_config')
     def test_main_config_error(self, mock_config):
         mock_config.side_effect = ValueError("Config error")
+        logging.disable(logging.NOTSET)  # Re-enable logging so assertLogs can capture it
         with self.assertLogs(level='ERROR') as log:
             main(self.test_folder)
-            self.assertIn("Config error", log.output[0])
+        logging.disable(logging.CRITICAL)  # Restore suppression for other tests
+        self.assertIn("Config error", log.output[0])
 
 if __name__ == '__main__':
     unittest.main()

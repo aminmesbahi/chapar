@@ -23,10 +23,8 @@ def _safe_template_path(base_dir: str, template_name: str) -> str:
         raise ValueError(f"Invalid template path: {template_name!r}")
     return resolved_template
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', tempfile.mkdtemp())
 ALLOWED_EXTENSIONS = {'html', 'csv', 'ini'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -57,7 +55,6 @@ def allowed_file(filename):
 def validate_file_content(filepath, expected_mime_types):
     """Validates the file content type using python-magic."""
     mime = magic.Magic(mime=True).from_file(filepath)
-    # Accept any of the expected mime types
     if not any(mime.startswith(expected) for expected in expected_mime_types):
         raise ValueError(f"Invalid file content type. Expected one of {expected_mime_types}, got {mime}")
 
@@ -71,12 +68,11 @@ def save_uploaded_files(files, temp_dir):
 
         file = request.files[key]
 
-        # Check file size
         file.seek(0, os.SEEK_END)
         file_length = file.tell()
         if file_length > MAX_FILE_SIZE:
-             raise ValueError(f"File {filename} exceeds maximum size of {MAX_FILE_SIZE} bytes")
-        file.seek(0) # rewind
+            raise ValueError(f"File {filename} exceeds maximum size of {MAX_FILE_SIZE} bytes")
+        file.seek(0)
 
         if not allowed_file(file.filename):
             raise ValueError(f'Invalid file type for {key}')
@@ -101,25 +97,17 @@ def index():
 def list_templates():
     """API endpoint to list available template folders."""
     try:
-        logging.info("Accessing /api/templates endpoint")
         templates = []
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        logging.info(f"Base directory: {base_dir}")
-        
-        # List all items in the directory for debugging
-        all_items = os.listdir(base_dir)
-        logging.info(f"All items in directory: {all_items}")
-        
-        for item in all_items:
+
+        for item in os.listdir(base_dir):
             item_path = os.path.join(base_dir, item)
             if os.path.isdir(item_path):
                 # Check if directory contains required files
                 has_html = os.path.exists(os.path.join(item_path, 'email_template.html'))
                 has_csv = os.path.exists(os.path.join(item_path, 'recipients.csv'))
                 has_ini = os.path.exists(os.path.join(item_path, 'config.ini'))
-                
-                logging.info(f"Directory {item}: has_html={has_html}, has_csv={has_csv}, has_ini={has_ini}")
-                
+
                 if has_html and has_csv and has_ini:
                     try:
                         desc = get_template_description(item_path)
@@ -129,10 +117,8 @@ def list_templates():
                         })
                     except Exception as e:
                         logging.exception(f"Error processing template {item}: {e}")
-        
-        # Sort templates alphabetically
+
         templates.sort(key=lambda x: x['name'])
-        logging.info(f"Returning {len(templates)} templates")
         return jsonify(templates)
     except Exception as e:
         logging.exception(f"Error listing templates: {e}")
@@ -142,17 +128,12 @@ def list_templates():
 def get_template_description(folder_path):
     """Extract a description for the template from its files."""
     try:
-        # Try to get description from config.ini
         config = configparser.ConfigParser()
         config.read(os.path.join(folder_path, 'config.ini'), encoding='utf-8')
         if config.has_section('Settings') and config.has_option('Settings', 'Description'):
             return config['Settings']['Description']
-        
-        # Fallback: Use the subject from config
         if config.has_section('SMTP') and config.has_option('SMTP', 'Subject'):
             return config['SMTP']['Subject']
-        
-        # Last resort: Use folder name
         return os.path.basename(folder_path)
     except Exception as e:
         logging.exception(f"Error getting template description: {e}")
@@ -185,10 +166,9 @@ def run_template():
         for name, path in required_files.items():
             if not os.path.exists(path):
                 return jsonify({'error': f'Missing required file: {name}'}), 400
-        
-        # Execute the email sending process
+
         try:
-            chapar.main(template_path)  # Pass the full path to template folder
+            chapar.main(template_path)
             result = {'status': 'success', 'message': 'Emails sent successfully'}
         except Exception as e:
             logging.error(f"Error during email dispatch: {e}")
@@ -256,10 +236,8 @@ def send_emails():
         if not request.files:
             return jsonify({'error': 'No files provided'}), 400
 
-        # Create temporary directory for this request
         temp_dir = tempfile.mkdtemp(dir=app.config['UPLOAD_FOLDER'])
 
-        # Handle file uploads
         files = {
             'template': 'email_template.html',
             'recipients': 'recipients.csv',
@@ -274,13 +252,11 @@ def send_emails():
             logging.exception("File saving error")
             return jsonify({'error': 'File processing error', 'details': str(e)}), 500
 
-        # Validate email addresses
         try:
             validate_recipients_file(file_paths['recipients'])
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
 
-        # Run Chapar email sending process
         try:
             chapar.send_emails_from_files(file_paths['config'], file_paths['recipients'], file_paths['template'])
             result = {'status': 'success', 'message': 'Emails sent successfully'}
@@ -301,7 +277,6 @@ def send_emails():
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
     
     finally:
-        # Ensure cleanup happens even if an exception occurs
         if temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
 
@@ -312,6 +287,5 @@ def health_check():
 
 
 if __name__ == '__main__':
-    # Ensure upload folder exists
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     app.run(host='0.0.0.0', port=5000)

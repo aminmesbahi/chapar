@@ -41,11 +41,10 @@ def load_config(folder: str) -> configparser.ConfigParser:
         if not config.has_section(section):
             raise ValueError(f"Missing section in config: {section}")
 
-    # Validate settings
     try:
-        interval = int(config['Settings'].get('Interval', '0'))  # Default to 0 if missing
-        config['Settings']['Interval'] = str(interval) # Ensure it's written back as a string
-        log_level = config['Settings'].get('LogLevel', 'none').lower() # Default to 'none'
+        interval = int(config['Settings'].get('Interval', '0'))
+        config['Settings']['Interval'] = str(interval)
+        log_level = config['Settings'].get('LogLevel', 'none').lower()
         if log_level not in ['none', 'job', 'detailed']:
             raise ValueError("Invalid LogLevel. Must be 'none', 'job', or 'detailed'.")
         config['Settings']['LogLevel'] = log_level
@@ -148,8 +147,64 @@ def send_emails_from_files(config_path: str, recipients_path: str, template_path
         recipients_path: Path to the recipients.csv file.
         template_path: Path to the email_template.html file.
     """
+    start_time = time.time()
     folder = os.path.dirname(config_path)
-    main(folder)
+    logging.info(f"Starting email dispatch using config: {config_path}")
+
+    try:
+        config = load_config(folder)
+        smtp_settings = {
+            'host': config['SMTP']['Host'],
+            'port': config['SMTP']['Port'],
+            'email': config['SMTP']['Email'],
+            'password': config['SMTP']['Password'],
+            'subject': config['SMTP']['Subject'],
+            'DisplayName': config['SMTP'].get('DisplayName', ''),
+        }
+        interval = int(config['Settings']['Interval'])
+        log_level = config['Settings']['LogLevel']
+        template_name = os.path.basename(folder)
+
+        if not os.path.exists(template_path):
+            raise FileNotFoundError(f"HTML template not found: {template_path}")
+        with open(template_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        if not os.path.exists(recipients_path):
+            raise FileNotFoundError(f"Recipients CSV not found: {recipients_path}")
+        with open(recipients_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            required_columns = {'email', 'name'}
+            if not required_columns.issubset(reader.fieldnames):
+                raise ValueError("CSV missing required columns: email/name")
+            recipients = [row for row in reader]
+
+        total_recipients = len(recipients)
+        success_count = 0
+        failure_count = 0
+        logging.info(f"Found {total_recipients} recipients in the list.")
+
+        with _create_smtp_server(
+            smtp_settings['host'],
+            int(smtp_settings['port']),
+            smtp_settings['email'],
+            smtp_settings['password'],
+        ) as server:
+            for recipient in recipients:
+                email = recipient['email']
+                name = recipient['name']
+                if send_email(smtp_settings, server, email, name, html_content, log_level, template_name):
+                    success_count += 1
+                else:
+                    failure_count += 1
+                time.sleep(interval)
+
+        elapsed_time = time.time() - start_time
+        logging.info(f"Email dispatch completed: {success_count} sent, {failure_count} failed. Total time: {elapsed_time:.2f} seconds.")
+
+    except Exception as e:
+        logging.exception(f"Error during email dispatch: {e}")
+        raise
 
 def send_email(smtp_settings: Dict[str, str], server: smtplib.SMTP, recipient_email: str, recipient_name: str, html_content: str, log_level: str, template_name: str) -> bool:
     """Sends a personalized email to a recipient.
@@ -203,7 +258,8 @@ def main(folder: str) -> None:
             'port': config['SMTP']['Port'],
             'email': config['SMTP']['Email'],
             'password': config['SMTP']['Password'],
-            'subject': config['SMTP']['Subject']
+            'subject': config['SMTP']['Subject'],
+            'DisplayName': config['SMTP'].get('DisplayName', ''),
         }
         interval = int(config['Settings']['Interval'])
         log_level = config['Settings']['LogLevel']

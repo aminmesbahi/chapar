@@ -1,8 +1,11 @@
 import unittest
 import os
+import sys
 import configparser
 from unittest.mock import patch, MagicMock
 import logging
+sys.modules.setdefault('magic', MagicMock())
+import chapar_api
 from chapar import (
     load_config,
     read_html,
@@ -11,7 +14,7 @@ from chapar import (
     send_email,
     main
 )
-from io import StringIO
+from io import BytesIO, StringIO
 
 class TestEmailDispatcher(unittest.TestCase):
 
@@ -139,6 +142,70 @@ class TestEmailDispatcher(unittest.TestCase):
             main(self.test_folder)
         logging.disable(logging.CRITICAL)  # Restore suppression for other tests
         self.assertIn("Config error", log.output[0])
+
+
+class TestChaparApi(unittest.TestCase):
+
+    def setUp(self):
+        chapar_api.app.config['TESTING'] = True
+        self.client = chapar_api.app.test_client()
+
+    def _upload_payload(self):
+        return {
+            'template': (BytesIO(b'<html></html>'), 'email_template.html'),
+            'recipients': (BytesIO(b'email,name\nuser@example.com,User\n'), 'recipients.csv'),
+            'config': (BytesIO(b'[SMTP]\nHost=smtp.example.com\n'), 'config.ini')
+        }
+
+    @patch('chapar_api.shutil.rmtree')
+    @patch('chapar_api.tempfile.mkdtemp', return_value='api-test-temp')
+    @patch('chapar_api.save_uploaded_files')
+    @patch('chapar_api.validate_recipients_file')
+    def test_send_masks_recipient_validation_error(self, mock_validate, mock_save, _mock_mkdtemp, _mock_rmtree):
+        mock_save.return_value = {
+            'template': 'email_template.html',
+            'recipients': 'recipients.csv',
+            'config': 'config.ini'
+        }
+        mock_validate.side_effect = ValueError('secret recipient details')
+
+        response = self.client.post('/api/send', data=self._upload_payload(), content_type='multipart/form-data')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json(), {'error': chapar_api.GENERIC_RECIPIENTS_ERROR})
+
+    @patch('chapar_api.shutil.rmtree')
+    @patch('chapar_api.tempfile.mkdtemp', return_value='api-test-temp')
+    @patch('chapar_api.chapar.send_emails_from_files')
+    @patch('chapar_api.validate_recipients_file')
+    @patch('chapar_api.save_uploaded_files')
+    def test_send_masks_dispatch_exception(self, mock_save, mock_validate, mock_send, _mock_mkdtemp, _mock_rmtree):
+        mock_save.return_value = {
+            'template': 'email_template.html',
+            'recipients': 'recipients.csv',
+            'config': 'config.ini'
+        }
+        mock_validate.return_value = None
+        mock_send.side_effect = Exception('smtp credential leak')
+
+        response = self.client.post('/api/send', data=self._upload_payload(), content_type='multipart/form-data')
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.get_json(), {
+            'status': 'error',
+            'message': chapar_api.GENERIC_EMAIL_DISPATCH_ERROR
+        })
+
+    @patch('chapar_api.shutil.rmtree')
+    @patch('chapar_api.tempfile.mkdtemp', return_value='api-test-temp')
+    @patch('chapar_api.save_uploaded_files')
+    def test_send_masks_file_processing_error(self, mock_save, _mock_mkdtemp, _mock_rmtree):
+        mock_save.side_effect = Exception('filesystem path leak')
+
+        response = self.client.post('/api/send', data=self._upload_payload(), content_type='multipart/form-data')
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.get_json(), {'error': chapar_api.GENERIC_FILE_UPLOAD_ERROR})
 
 if __name__ == '__main__':
     unittest.main()

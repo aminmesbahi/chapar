@@ -2,7 +2,7 @@
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Quality](https://github.com/aminmesbahi/chapar/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/aminmesbahi/chapar/actions/workflows/quality.yml)
-[![CodeQL](https://github.com/aminmesbahi/chapar/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/aminmesbahi/chapar/actions/workflows/codeql.yml)
+[![CodeQL](https://github.com/aminmesbahi/chapar/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/aminmesbahi/chapar/actions/workflows/github-code-scanning/codeql)
 
 Chapar (چاپار) is a Python-based tool for sending personalized HTML emails effortlessly. Inspired by the Persian word "Chapar," which refers to the ancient postal couriers who swiftly delivered messages across distances, this project modernizes the art of communication, enabling efficient and customizable email delivery for your needs.
 

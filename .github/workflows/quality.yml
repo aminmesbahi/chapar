@@ -1,0 +1,29 @@
+name: Quality
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify Python sources compile
+        run: python -m compileall src
+
+      - name: Run unit tests
+        working-directory: src
+        run: python -m unittest discover -p "test_*.py"

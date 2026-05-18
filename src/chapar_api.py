@@ -125,13 +125,13 @@ def list_templates():
                             'name': item,
                             'description': desc
                         })
-                    except Exception as e:
-                        logging.exception(f"Error processing template {item}: {e}")
+                    except Exception:
+                        logging.exception("Error processing template %s", item)
 
         templates.sort(key=lambda x: x['name'])
         return jsonify(templates)
-    except Exception as e:
-        logging.exception(f"Error listing templates: {e}")
+    except Exception:
+        logging.exception("Error listing templates")
         return jsonify({'error': GENERIC_LIST_TEMPLATES_ERROR}), 500
     
     
@@ -145,8 +145,8 @@ def get_template_description(folder_path):
         if config.has_section('SMTP') and config.has_option('SMTP', 'Subject'):
             return config['SMTP']['Subject']
         return os.path.basename(folder_path)
-    except Exception as e:
-        logging.exception(f"Error getting template description: {e}")
+    except Exception:
+        logging.exception("Error getting template description")
         return os.path.basename(folder_path)
 
 @app.route('/api/run-template', methods=['POST'])
@@ -180,13 +180,13 @@ def run_template():
         try:
             chapar.main(template_path)
             result = {'status': 'success', 'message': 'Emails sent successfully'}
-        except Exception as e:
-            logging.error(f"Error during email dispatch: {e}")
+        except Exception:
+            logging.exception("Error during email dispatch")
             return jsonify({'status': 'error', 'message': GENERIC_EMAIL_DISPATCH_ERROR}), 500
         
         return jsonify(result)
         
-    except Exception as e:
+    except Exception:
         logging.exception("Unexpected error")
         return jsonify({'error': GENERIC_INTERNAL_ERROR}), 500
     
@@ -233,8 +233,8 @@ def get_template(template_folder):
             'csv': csv_content,
             'name': template_folder
         })
-    except Exception as e:
-        logging.exception(f"Error reading template: {e}")
+    except Exception:
+        logging.exception("Error reading template")
         return jsonify({'error': GENERIC_TEMPLATE_READ_ERROR}), 500
      
 
@@ -258,7 +258,7 @@ def send_emails():
             file_paths = save_uploaded_files(files, temp_dir)
         except ValueError:
             return jsonify({'error': GENERIC_FILE_UPLOAD_ERROR}), 400
-        except Exception as e:
+        except Exception:
             logging.exception("File saving error")
             return jsonify({'error': GENERIC_FILE_UPLOAD_ERROR}), 500
 
@@ -276,13 +276,13 @@ def send_emails():
             return jsonify({'error': GENERIC_SMTP_ERROR}), 500
         except ValueError:
             return jsonify({'error': GENERIC_VALIDATION_ERROR}), 400
-        except Exception as e:
-            logging.error(f"Error during email dispatch: {e}")
+        except Exception:
+            logging.exception("Error during email dispatch")
             return jsonify({'status': 'error', 'message': GENERIC_EMAIL_DISPATCH_ERROR}), 500
 
         return jsonify(result)
 
-    except Exception as e:
+    except Exception:
         logging.exception("Unexpected error")
         return jsonify({'error': GENERIC_INTERNAL_ERROR}), 500
     

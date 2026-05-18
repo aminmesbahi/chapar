@@ -15,6 +15,16 @@ import csv
 
 app = Flask(__name__)
 
+GENERIC_LIST_TEMPLATES_ERROR = 'Unable to list templates'
+GENERIC_TEMPLATE_READ_ERROR = 'Unable to read template'
+GENERIC_EMAIL_DISPATCH_ERROR = 'Email dispatch failed'
+GENERIC_FILE_UPLOAD_ERROR = 'Invalid uploaded files'
+GENERIC_RECIPIENTS_ERROR = 'Invalid recipients file'
+GENERIC_CONFIG_ERROR = 'Invalid configuration file'
+GENERIC_SMTP_ERROR = 'Email delivery failed'
+GENERIC_VALIDATION_ERROR = 'Validation failed'
+GENERIC_INTERNAL_ERROR = 'Internal server error'
+
 
 def _safe_template_path(base_dir: str, template_name: str) -> str:
     resolved_base = os.path.realpath(base_dir)
@@ -122,7 +132,7 @@ def list_templates():
         return jsonify(templates)
     except Exception as e:
         logging.exception(f"Error listing templates: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': GENERIC_LIST_TEMPLATES_ERROR}), 500
     
     
 def get_template_description(folder_path):
@@ -172,13 +182,13 @@ def run_template():
             result = {'status': 'success', 'message': 'Emails sent successfully'}
         except Exception as e:
             logging.error(f"Error during email dispatch: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+            return jsonify({'status': 'error', 'message': GENERIC_EMAIL_DISPATCH_ERROR}), 500
         
         return jsonify(result)
         
     except Exception as e:
         logging.exception("Unexpected error")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return jsonify({'error': GENERIC_INTERNAL_ERROR}), 500
     
 @app.route('/templates/<template_folder>')
 def get_template(template_folder):
@@ -225,7 +235,7 @@ def get_template(template_folder):
         })
     except Exception as e:
         logging.exception(f"Error reading template: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': GENERIC_TEMPLATE_READ_ERROR}), 500
      
 
 @app.route('/api/send', methods=['POST'])
@@ -246,35 +256,35 @@ def send_emails():
 
         try:
             file_paths = save_uploaded_files(files, temp_dir)
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
+        except ValueError:
+            return jsonify({'error': GENERIC_FILE_UPLOAD_ERROR}), 400
         except Exception as e:
             logging.exception("File saving error")
-            return jsonify({'error': 'File processing error', 'details': str(e)}), 500
+            return jsonify({'error': GENERIC_FILE_UPLOAD_ERROR}), 500
 
         try:
             validate_recipients_file(file_paths['recipients'])
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
+        except ValueError:
+            return jsonify({'error': GENERIC_RECIPIENTS_ERROR}), 400
 
         try:
             chapar.send_emails_from_files(file_paths['config'], file_paths['recipients'], file_paths['template'])
             result = {'status': 'success', 'message': 'Emails sent successfully'}
-        except configparser.Error as e:
-            return jsonify({'error': 'Configuration error', 'details': str(e)}), 400
-        except smtplib.SMTPException as e:
-            return jsonify({'error': 'SMTP error', 'details': str(e)}), 500
-        except ValueError as e:
-            return jsonify({'error': 'Validation error', 'details': str(e)}), 400
+        except configparser.Error:
+            return jsonify({'error': GENERIC_CONFIG_ERROR}), 400
+        except smtplib.SMTPException:
+            return jsonify({'error': GENERIC_SMTP_ERROR}), 500
+        except ValueError:
+            return jsonify({'error': GENERIC_VALIDATION_ERROR}), 400
         except Exception as e:
             logging.error(f"Error during email dispatch: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+            return jsonify({'status': 'error', 'message': GENERIC_EMAIL_DISPATCH_ERROR}), 500
 
         return jsonify(result)
 
     except Exception as e:
         logging.exception("Unexpected error")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return jsonify({'error': GENERIC_INTERNAL_ERROR}), 500
     
     finally:
         if temp_dir and os.path.exists(temp_dir):

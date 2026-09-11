@@ -119,6 +119,16 @@ Running Tests
 * Always use secure SMTP connections (Port 587 for TLS or 465 for SSL)
 * Keep your SMTP credentials secure and never commit them to version control
 * Consider using environment variables for sensitive information
+* Set the `CHAPAR_API_KEY` environment variable before exposing the web server beyond localhost. When set, `/api/send`, `/api/run-template`, and `/templates/<folder>` require a matching `X-API-Key` header; without it, anyone who can reach the server can send email through your configured SMTP account and read recipient lists. The built-in web UI has an "API Key" button (top right) that stores the key in the browser's local storage and attaches it to its requests.
+
+### Development
+
+Install dev dependencies (ruff, mypy) and run the same checks CI runs:
+```bash
+uv sync
+uv run ruff check src
+uv run mypy src
+```
 
 ## Subscriber CSV Merger
 

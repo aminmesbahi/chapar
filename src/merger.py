@@ -1,7 +1,7 @@
-import os
-import csv
-import configparser
 import argparse
+import configparser
+import csv
+import os
 from datetime import datetime
 
 DEFAULT_CONFIG = {
@@ -44,7 +44,8 @@ def merge_csv(folder, config):
     output_path = os.path.join(folder, config['output_file'])
 
     files = get_csv_files(subscribers_folder, start_idx, end_idx)
-    merged = {}
+    merged: dict[str, dict[str, str]] = {}
+    merged_ts: dict[str, datetime] = {}
 
     for fname in files:
         path = os.path.join(subscribers_folder, fname)
@@ -59,11 +60,9 @@ def merge_csv(folder, config):
                     ts = datetime.fromisoformat(timestamp)
                 except (ValueError, TypeError):
                     ts = datetime.min
-                if email not in merged or ts > merged[email]['_ts']:
-                    merged[email] = {
-                        **row,
-                        '_ts': ts
-                    }
+                if email not in merged or ts > merged_ts[email]:
+                    merged[email] = dict(row)
+                    merged_ts[email] = ts
                 else:
                     # For each field, True always wins over False, regardless of timestamp
                     for col in [config['updates_column'], config['survey_column']]:
@@ -74,23 +73,24 @@ def merge_csv(folder, config):
                         elif curr_val == 'false' and prev_val != 'true':
                             merged[email][col] = row.get(col, '')
 
-    # Remove _ts before writing
     if merged:
-        fieldnames = [k for k in next(iter(merged.values())).keys() if k != '_ts']
+        fieldnames = list(next(iter(merged.values())).keys())
     else:
         fieldnames = [config['email_column'], config['updates_column'], config['survey_column']]
     with open(output_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for row in merged.values():
-            out_row = {k: v for k, v in row.items() if k != '_ts'}
-            writer.writerow(out_row)
+            writer.writerow(row)
 
     print(f"Merged {len(merged)} unique subscribers to {output_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="Merge and deduplicate subscribers CSV")
-    parser.add_argument('folder', nargs='?', default='.', help='Folder containing merger.ini and the subscribers subfolder')
+    parser.add_argument(
+        'folder', nargs='?', default='.',
+        help='Folder containing merger.ini and the subscribers subfolder'
+    )
     parser.add_argument('--start', type=int, help='Start index (e.g. 2 for 002)')
     parser.add_argument('--end', type=int, help='End index (e.g. 4 for 004)')
     args = parser.parse_args()

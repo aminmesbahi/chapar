@@ -9,3 +9,21 @@ dependencies = [
     "python-magic-bin==0.4.14; sys_platform == 'win32'",
     "gunicorn==25.3.0; sys_platform != 'win32'",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14",
+    "mypy>=1.14",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true

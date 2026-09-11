@@ -1,17 +1,19 @@
-from flask import Flask, request, jsonify
-from werkzeug.utils import secure_filename
+import configparser
+import csv
+import hmac
+import io
+import logging
 import os
 import re
-import io
-import smtplib
-import chapar
-import configparser
-import tempfile
 import shutil
-import logging
+import smtplib
+import tempfile
+from functools import wraps
+
 import magic
-from flask import send_from_directory, render_template
-import csv
+from flask import Flask, jsonify, request, send_from_directory
+
+import chapar
 
 app = Flask(__name__)
 
@@ -35,10 +37,29 @@ def _safe_template_path(base_dir: str, template_name: str) -> str:
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', tempfile.mkdtemp())
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER') or tempfile.mkdtemp()
 ALLOWED_EXTENSIONS = {'html', 'csv', 'ini'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+API_KEY = os.getenv('CHAPAR_API_KEY')
+if not API_KEY:
+    logging.warning(
+        "CHAPAR_API_KEY is not set; email-sending and recipient-data API endpoints are "
+        "unauthenticated. Set the CHAPAR_API_KEY environment variable to require an "
+        "X-API-Key header on those requests."
+    )
+
+
+def require_api_key(view_func):
+    """Requires a matching X-API-Key header when CHAPAR_API_KEY is configured."""
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if API_KEY and not hmac.compare_digest(request.headers.get('X-API-Key', ''), API_KEY):
+            return jsonify({'error': 'Unauthorized'}), 401
+        return view_func(*args, **kwargs)
+    return wrapped
+
 
 def validate_email(email):
     """Validates an email address format."""
@@ -54,7 +75,7 @@ def validate_recipients_file(filepath):
             email = row.get('email', '').strip()
             if email and not validate_email(email):
                 invalid_emails.append(email)
-    
+
     if invalid_emails:
         raise ValueError(f"Invalid email addresses found: {', '.join(invalid_emails[:5])}" +
                         (f" and {len(invalid_emails)-5} more" if len(invalid_emails) > 5 else ""))
@@ -133,8 +154,8 @@ def list_templates():
     except Exception:
         logging.exception("Error listing templates")
         return jsonify({'error': GENERIC_LIST_TEMPLATES_ERROR}), 500
-    
-    
+
+
 def get_template_description(folder_path):
     """Extract a description for the template from its files."""
     try:
@@ -150,13 +171,14 @@ def get_template_description(folder_path):
         return os.path.basename(folder_path)
 
 @app.route('/api/run-template', methods=['POST'])
+@require_api_key
 def run_template():
     """API endpoint to run an existing template folder."""
     try:
         data = request.json
         if not data or 'template' not in data:
             return jsonify({'error': 'No template specified'}), 400
-        
+
         template_folder = data['template']
         base_dir = os.path.dirname(os.path.abspath(__file__))
         try:
@@ -166,13 +188,13 @@ def run_template():
 
         if not os.path.isdir(template_path):
             return jsonify({'error': 'Template folder not found'}), 404
-        
+
         required_files = {
             'email_template.html': os.path.join(template_path, 'email_template.html'),
             'recipients.csv': os.path.join(template_path, 'recipients.csv'),
             'config.ini': os.path.join(template_path, 'config.ini')
         }
-        
+
         for name, path in required_files.items():
             if not os.path.exists(path):
                 return jsonify({'error': f'Missing required file: {name}'}), 400
@@ -183,14 +205,15 @@ def run_template():
         except Exception:
             logging.exception("Error during email dispatch")
             return jsonify({'status': 'error', 'message': GENERIC_EMAIL_DISPATCH_ERROR}), 500
-        
+
         return jsonify(result)
-        
+
     except Exception:
         logging.exception("Unexpected error")
         return jsonify({'error': GENERIC_INTERNAL_ERROR}), 500
-    
+
 @app.route('/templates/<template_folder>')
+@require_api_key
 def get_template(template_folder):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     try:
@@ -236,9 +259,10 @@ def get_template(template_folder):
     except Exception:
         logging.exception("Error reading template")
         return jsonify({'error': GENERIC_TEMPLATE_READ_ERROR}), 500
-     
+
 
 @app.route('/api/send', methods=['POST'])
+@require_api_key
 def send_emails():
     """API endpoint to send emails using uploaded files."""
     temp_dir = None
@@ -285,7 +309,7 @@ def send_emails():
     except Exception:
         logging.exception("Unexpected error")
         return jsonify({'error': GENERIC_INTERNAL_ERROR}), 500
-    
+
     finally:
         if temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)

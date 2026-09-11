@@ -1,20 +1,17 @@
-import unittest
+import configparser
+import logging
 import os
 import sys
-import configparser
-from unittest.mock import patch, MagicMock
-import logging
+import unittest
+from io import BytesIO
+from unittest.mock import MagicMock, patch
+
+# chapar_api imports the `magic` package, which needs a real libmagic install;
+# stub it out before importing chapar_api so the tests don't need libmagic.
 sys.modules.setdefault('magic', MagicMock())
-import chapar_api
-from chapar import (
-    load_config,
-    read_html,
-    read_csv,
-    _create_smtp_server,
-    send_email,
-    main
-)
-from io import BytesIO, StringIO
+import chapar_api  # noqa: E402
+from chapar import _create_smtp_server, load_config, main, read_csv, read_html, send_email  # noqa: E402
+
 
 class TestEmailDispatcher(unittest.TestCase):
 
@@ -41,7 +38,7 @@ class TestEmailDispatcher(unittest.TestCase):
 
     def test_load_config_valid(self):
         self.create_config({
-            'SMTP': {'Host': 'smtp.example.com', 'Port': '587', 'Email': 'user@example.com', 
+            'SMTP': {'Host': 'smtp.example.com', 'Port': '587', 'Email': 'user@example.com',
                      'Password': 'pass', 'Subject': 'Hello'},
             'Settings': {'Interval': '1'}
         })
@@ -94,10 +91,10 @@ class TestEmailDispatcher(unittest.TestCase):
         mock_smtp.return_value.__enter__ = MagicMock(return_value=mock_server)
         mock_smtp.return_value.__exit__ = MagicMock(return_value=False)
         smtp_settings = {
-            'host': 'host', 'port': 587, 'email': 'from@example.com',
+            'host': 'host', 'port': '587', 'email': 'from@example.com',
             'password': 'pass', 'subject': 'Test', 'DisplayName': 'Test'
         }
-        result = send_email(smtp_settings, mock_server, 'to@example.com', 'John', 
+        result = send_email(smtp_settings, mock_server, 'to@example.com', 'John',
                            '<html>{{name}}</html>', 'detailed', 'test')
         self.assertTrue(result)
         mock_server.sendmail.assert_called_once()
@@ -106,9 +103,9 @@ class TestEmailDispatcher(unittest.TestCase):
     def test_send_email_failure(self, mock_smtp):
         mock_server = MagicMock()
         mock_server.sendmail.side_effect = Exception("SMTP error")
-        smtp_settings = {'host': 'host', 'port': 587, 'email': 'from@example.com',
+        smtp_settings = {'host': 'host', 'port': '587', 'email': 'from@example.com',
                         'password': 'pass', 'subject': 'Test'}
-        result = send_email(smtp_settings, mock_server, 'to@example.com', 'John', 
+        result = send_email(smtp_settings, mock_server, 'to@example.com', 'John',
                            '<html></html>', 'none', 'test')
         self.assertFalse(result)
 
@@ -120,7 +117,7 @@ class TestEmailDispatcher(unittest.TestCase):
     @patch('time.sleep')
     def test_main_success(self, mock_sleep, mock_smtp_server, mock_send, mock_csv, mock_html, mock_config):
         mock_config.return_value = {
-            'SMTP': {'Host': 'host', 'Port': '587', 'Email': 'user', 
+            'SMTP': {'Host': 'host', 'Port': '587', 'Email': 'user',
                     'Password': 'pass', 'Subject': 'Subj'},
             'Settings': {'Interval': '0', 'LogLevel': 'detailed'}
         }
@@ -139,7 +136,8 @@ class TestEmailDispatcher(unittest.TestCase):
         mock_config.side_effect = ValueError("Config error")
         logging.disable(logging.NOTSET)  # Re-enable logging so assertLogs can capture it
         with self.assertLogs(level='ERROR') as log:
-            main(self.test_folder)
+            with self.assertRaises(ValueError):
+                main(self.test_folder)
         logging.disable(logging.CRITICAL)  # Restore suppression for other tests
         self.assertIn("Config error", log.output[0])
 
@@ -206,6 +204,47 @@ class TestChaparApi(unittest.TestCase):
 
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.get_json(), {'error': chapar_api.GENERIC_FILE_UPLOAD_ERROR})
+
+    @patch('chapar_api.chapar.main')
+    def test_run_template_reports_failure_when_dispatch_raises(self, mock_main):
+        # Regression test: chapar.main() used to swallow its own exceptions, so a
+        # failed dispatch (bad SMTP creds, etc.) was silently reported as success here.
+        mock_main.side_effect = Exception('smtp credential leak')
+
+        response = self.client.post('/api/run-template', json={'template': 'newsletter0-ltr'})
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.get_json(), {
+            'status': 'error',
+            'message': chapar_api.GENERIC_EMAIL_DISPATCH_ERROR
+        })
+
+    def test_send_rejects_missing_or_wrong_api_key_when_configured(self):
+        with patch.object(chapar_api, 'API_KEY', 'secret123'):
+            response = self.client.post('/api/send', data=self._upload_payload(), content_type='multipart/form-data')
+            self.assertEqual(response.status_code, 401)
+
+            response = self.client.post(
+                '/api/run-template',
+                json={'template': 'newsletter0-ltr'},
+                headers={'X-API-Key': 'wrong-key'}
+            )
+            self.assertEqual(response.status_code, 401)
+
+    def test_run_template_accepts_correct_api_key(self):
+        with patch.object(chapar_api, 'API_KEY', 'secret123'):
+            response = self.client.post(
+                '/api/run-template',
+                json={'template': 'this-template-does-not-exist'},
+                headers={'X-API-Key': 'secret123'}
+            )
+            # Passed the auth check and reached normal template-lookup logic.
+            self.assertEqual(response.status_code, 404)
+
+    def test_list_templates_and_health_check_do_not_require_api_key(self):
+        with patch.object(chapar_api, 'API_KEY', 'secret123'):
+            self.assertEqual(self.client.get('/api/health').status_code, 200)
+            self.assertEqual(self.client.get('/api/templates').status_code, 200)
 
 if __name__ == '__main__':
     unittest.main()

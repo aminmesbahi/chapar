@@ -1,16 +1,15 @@
-import os
-import smtplib
+import configparser
 import csv
 import html
-import time
-import configparser
 import logging
-from email.mime.text import MIMEText
+import os
+import smtplib
+import time
 from email.header import Header
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from email.utils import formataddr
-from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -103,7 +102,7 @@ def read_csv(folder: str) -> List[Dict[str, str]]:
     with open(csv_file, 'r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         required_columns = {'email', 'name'}
-        if not required_columns.issubset(reader.fieldnames):
+        if not reader.fieldnames or not required_columns.issubset(reader.fieldnames):
             raise ValueError("CSV missing required columns: email/name")
         return [row for row in reader]
 
@@ -124,6 +123,7 @@ def _create_smtp_server(host: str, port: int, email: str, password: str) -> smtp
         smtplib.SMTPException: If there is an error connecting to the SMTP server.
     """
     try:
+        server: smtplib.SMTP
         if port == 465:
             server = smtplib.SMTP_SSL(host, port, timeout=10)
             logging.info("SSL connection established")
@@ -138,6 +138,59 @@ def _create_smtp_server(host: str, port: int, email: str, password: str) -> smtp
     except smtplib.SMTPException as e:
         raise smtplib.SMTPException(f"SMTP authentication error: {e}")
 
+def _smtp_settings_from_config(config: configparser.ConfigParser) -> Dict[str, str]:
+    """Builds the SMTP settings dict used by send_email/_create_smtp_server from a loaded config."""
+    return {
+        'host': config['SMTP']['Host'],
+        'port': config['SMTP']['Port'],
+        'email': config['SMTP']['Email'],
+        'password': config['SMTP']['Password'],
+        'subject': config['SMTP']['Subject'],
+        'DisplayName': config['SMTP'].get('DisplayName', ''),
+    }
+
+
+def _dispatch(
+    smtp_settings: Dict[str, str],
+    interval: int,
+    log_level: str,
+    template_name: str,
+    html_content: str,
+    recipients: List[Dict[str, str]],
+) -> tuple[int, int]:
+    """Sends html_content to every recipient over one SMTP connection, logging progress.
+
+    Returns:
+        A (success_count, failure_count) tuple.
+    """
+    start_time = time.time()
+    logging.info(f"Found {len(recipients)} recipients in the list.")
+    success_count = 0
+    failure_count = 0
+
+    with _create_smtp_server(
+        smtp_settings['host'],
+        int(smtp_settings['port']),
+        smtp_settings['email'],
+        smtp_settings['password'],
+    ) as server:
+        for recipient in recipients:
+            email = recipient['email']
+            name = recipient['name']
+            if send_email(smtp_settings, server, email, name, html_content, log_level, template_name):
+                success_count += 1
+            else:
+                failure_count += 1
+            time.sleep(interval)
+
+    elapsed_time = time.time() - start_time
+    logging.info(
+        f"Email dispatch completed: {success_count} sent, {failure_count} failed. "
+        f"Total time: {elapsed_time:.2f} seconds."
+    )
+    return success_count, failure_count
+
+
 def send_emails_from_files(config_path: str, recipients_path: str, template_path: str) -> None:
     """
     Sends emails using the specified configuration, recipients, and template files.
@@ -147,20 +200,12 @@ def send_emails_from_files(config_path: str, recipients_path: str, template_path
         recipients_path: Path to the recipients.csv file.
         template_path: Path to the email_template.html file.
     """
-    start_time = time.time()
     folder = os.path.dirname(config_path)
     logging.info(f"Starting email dispatch using config: {config_path}")
 
     try:
         config = load_config(folder)
-        smtp_settings = {
-            'host': config['SMTP']['Host'],
-            'port': config['SMTP']['Port'],
-            'email': config['SMTP']['Email'],
-            'password': config['SMTP']['Password'],
-            'subject': config['SMTP']['Subject'],
-            'DisplayName': config['SMTP'].get('DisplayName', ''),
-        }
+        smtp_settings = _smtp_settings_from_config(config)
         interval = int(config['Settings']['Interval'])
         log_level = config['Settings']['LogLevel']
         template_name = os.path.basename(folder)
@@ -175,38 +220,25 @@ def send_emails_from_files(config_path: str, recipients_path: str, template_path
         with open(recipients_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             required_columns = {'email', 'name'}
-            if not required_columns.issubset(reader.fieldnames):
+            if not reader.fieldnames or not required_columns.issubset(reader.fieldnames):
                 raise ValueError("CSV missing required columns: email/name")
             recipients = [row for row in reader]
 
-        total_recipients = len(recipients)
-        success_count = 0
-        failure_count = 0
-        logging.info(f"Found {total_recipients} recipients in the list.")
-
-        with _create_smtp_server(
-            smtp_settings['host'],
-            int(smtp_settings['port']),
-            smtp_settings['email'],
-            smtp_settings['password'],
-        ) as server:
-            for recipient in recipients:
-                email = recipient['email']
-                name = recipient['name']
-                if send_email(smtp_settings, server, email, name, html_content, log_level, template_name):
-                    success_count += 1
-                else:
-                    failure_count += 1
-                time.sleep(interval)
-
-        elapsed_time = time.time() - start_time
-        logging.info(f"Email dispatch completed: {success_count} sent, {failure_count} failed. Total time: {elapsed_time:.2f} seconds.")
+        _dispatch(smtp_settings, interval, log_level, template_name, html_content, recipients)
 
     except Exception as e:
         logging.exception(f"Error during email dispatch: {e}")
         raise
 
-def send_email(smtp_settings: Dict[str, str], server: smtplib.SMTP, recipient_email: str, recipient_name: str, html_content: str, log_level: str, template_name: str) -> bool:
+def send_email(
+    smtp_settings: Dict[str, str],
+    server: smtplib.SMTP,
+    recipient_email: str,
+    recipient_name: str,
+    html_content: str,
+    log_level: str,
+    template_name: str,
+) -> bool:
     """Sends a personalized email to a recipient.
 
     Args:
@@ -226,7 +258,7 @@ def send_email(smtp_settings: Dict[str, str], server: smtplib.SMTP, recipient_em
         display_name = smtp_settings.get('DisplayName', 'TechAfternoon')
         message["From"] = formataddr((str(Header(display_name, "utf-8")), smtp_settings['email']))
         message["To"] = recipient_email
-        message["Subject"] = Header(smtp_settings['subject'], "utf-8")
+        message["Subject"] = str(Header(smtp_settings['subject'], "utf-8"))
 
         personalized_html = html_content.replace("{{name}}", html.escape(recipient_name))
         part = MIMEText(personalized_html, "html", "utf-8")
@@ -247,20 +279,15 @@ def main(folder: str) -> None:
 
     Args:
         folder: The folder containing the configuration file, HTML template, and recipient list.
+
+    Raises:
+        Exception: Re-raises whatever error interrupted the dispatch, after logging it.
     """
-    start_time = time.time()
     logging.info(f"Starting email dispatch for folder: {folder}")
 
     try:
         config = load_config(folder)
-        smtp_settings = {
-            'host': config['SMTP']['Host'],
-            'port': config['SMTP']['Port'],
-            'email': config['SMTP']['Email'],
-            'password': config['SMTP']['Password'],
-            'subject': config['SMTP']['Subject'],
-            'DisplayName': config['SMTP'].get('DisplayName', ''),
-        }
+        smtp_settings = _smtp_settings_from_config(config)
         interval = int(config['Settings']['Interval'])
         log_level = config['Settings']['LogLevel']
         template_name = os.path.basename(folder)
@@ -268,38 +295,25 @@ def main(folder: str) -> None:
         html_content = read_html(folder)
         recipients = read_csv(folder)
 
-        total_recipients = len(recipients)
-        success_count = 0
-        failure_count = 0
+        success_count, _ = _dispatch(smtp_settings, interval, log_level, template_name, html_content, recipients)
 
-        logging.info(f"Found {total_recipients} recipients in the list.")
-
-        with _create_smtp_server(
-            smtp_settings['host'],
-            int(smtp_settings['port']),
-            smtp_settings['email'],
-            smtp_settings['password'],
-        ) as server:
-            for recipient in recipients:
-                email = recipient['email']
-                name = recipient['name']
-                if send_email(smtp_settings, server, email, name, html_content, log_level, template_name):
-                    success_count += 1
-                else:
-                    failure_count += 1
-                time.sleep(interval)
-
-        elapsed_time = time.time() - start_time
         if log_level == 'job':
-            logging.info(f"Sent {success_count} successful emails from {total_recipients} total recipients with template {template_name}")
-        logging.info(f"Email dispatch completed: {success_count} sent, {failure_count} failed. Total time: {elapsed_time:.2f} seconds.")
+            logging.info(
+                f"Sent {success_count} successful emails from {len(recipients)} total "
+                f"recipients with template {template_name}"
+            )
 
     except Exception as e:
         logging.exception(f"Error during email dispatch in folder {folder}: {e}")
+        raise
 
 if __name__ == "__main__":
     import argparse
+    import sys
     parser = argparse.ArgumentParser(description="Chapar Email Dispatcher")
     parser.add_argument("folder", help="Folder containing the email template and recipients CSV file")
     args = parser.parse_args()
-    main(args.folder)
+    try:
+        main(args.folder)
+    except Exception:
+        sys.exit(1)

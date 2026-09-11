@@ -40,10 +40,11 @@
                 <span class="ms-2">Chapar Email Dispatcher</span>
                 <small class="ms-2 text-white-50">(چاپار)</small>
             </a>
-            <div>
-                <span class="badge bg-light text-dark" 
-                      hx-get="/api/health" 
-                      hx-trigger="load, every 30s" 
+            <div class="d-flex align-items-center">
+                <button type="button" class="btn btn-sm btn-outline-light me-2" id="api-key-btn" title="Set the API key required by the server (CHAPAR_API_KEY)">API Key</button>
+                <span class="badge bg-light text-dark"
+                      hx-get="/api/health"
+                      hx-trigger="load, every 30s"
                       hx-target="#api-status"
                       hx-indicator="#api-status-spinner">
                     API Status: <span id="api-status">Checking...</span>
@@ -263,7 +264,47 @@ LogLevel = detailed  # Options: none, job, detailed</pre>
     <script>
         // Store selected template
         let selectedTemplate = null;
-        
+
+        // Escapes text for safe insertion into innerHTML strings
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str == null ? '' : String(str);
+            return div.innerHTML;
+        }
+
+        // Optional API key, required only if the server was started with CHAPAR_API_KEY set
+        function getApiKey() {
+            try {
+                return localStorage.getItem('chapar_api_key') || '';
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function promptForApiKey() {
+            const key = window.prompt('Enter the Chapar API key (only needed if the server sets CHAPAR_API_KEY):', getApiKey());
+            if (key !== null) {
+                try { localStorage.setItem('chapar_api_key', key.trim()); } catch (e) {}
+            }
+            return getApiKey();
+        }
+
+        document.getElementById('api-key-btn').addEventListener('click', promptForApiKey);
+
+        // Attach the API key to every htmx request (used by the /api/send upload form)
+        document.body.addEventListener('htmx:configRequest', function(event) {
+            const key = getApiKey();
+            if (key) {
+                event.detail.headers['X-API-Key'] = key;
+            }
+        });
+
+        document.body.addEventListener('htmx:responseError', function(event) {
+            if (event.detail.xhr && event.detail.xhr.status === 401) {
+                promptForApiKey();
+            }
+        });
+
         document.body.addEventListener('htmx:afterSwap', function(event) {
     if (event.detail.target.id === 'api-status') {
         const status = event.detail.target.textContent;
@@ -357,21 +398,41 @@ document.getElementById('existing-tab').addEventListener('click', function() {
                 return;
             }
             
-            let html = '';
+            templateList.innerHTML = '';
             templates.forEach(template => {
-                html += `
-                    <a href="#" class="list-group-item list-group-item-action template-item" 
-                       data-template="${template.name}" onclick="selectTemplate('${template.name}')">
-                        <div class="d-flex w-100 justify-content-between align-items-center">
-                            <h5 class="mb-1">${template.name}</h5>
-                            <small class="text-muted">Template</small>
-                        </div>
-                        <p class="mb-1">${template.description}</p>
-                    </a>
-                `;
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'list-group-item list-group-item-action template-item';
+                item.dataset.template = template.name;
+
+                const row = document.createElement('div');
+                row.className = 'd-flex w-100 justify-content-between align-items-center';
+
+                const title = document.createElement('h5');
+                title.className = 'mb-1';
+                title.textContent = template.name;
+
+                const badge = document.createElement('small');
+                badge.className = 'text-muted';
+                badge.textContent = 'Template';
+
+                row.appendChild(title);
+                row.appendChild(badge);
+
+                const desc = document.createElement('p');
+                desc.className = 'mb-1';
+                desc.textContent = template.description;
+
+                item.appendChild(row);
+                item.appendChild(desc);
+
+                item.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    selectTemplate(template.name);
+                });
+
+                templateList.appendChild(item);
             });
-            
-            templateList.innerHTML = html;
         })
         .catch(error => {
             console.error("Error fetching templates:", error);
@@ -421,11 +482,17 @@ document.getElementById('existing-tab').addEventListener('click', function() {
             fetch('/api/run-template', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-API-Key': getApiKey()
                 },
                 body: JSON.stringify({ template: selectedTemplate })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (response.status === 401) {
+                    promptForApiKey();
+                }
+                return response.json();
+            })
             .then(data => {
                 // Process response
                 const resultContainer = document.getElementById('result');
@@ -454,7 +521,7 @@ document.getElementById('existing-tab').addEventListener('click', function() {
                 document.getElementById('result').innerHTML = `
                     <div class="alert alert-danger">
                         <h4 class="alert-heading">Error</h4>
-                        <p>Failed to run template: ${error.message}</p>
+                        <p>Failed to run template: ${escapeHtml(error.message)}</p>
                     </div>
                 `;
             })
@@ -467,8 +534,13 @@ document.getElementById('existing-tab').addEventListener('click', function() {
 
         // Function to load template files from server template folders
         function loadTemplate(templateFolder) {
-            fetch(`/templates/${templateFolder}`)
+            fetch(`/templates/${templateFolder}`, {
+                headers: { 'X-API-Key': getApiKey() }
+            })
                 .then(response => {
+                    if (response.status === 401) {
+                        promptForApiKey();
+                    }
                     if (!response.ok) {
                         throw new Error('Failed to fetch template');
                     }
@@ -485,7 +557,7 @@ document.getElementById('existing-tab').addEventListener('click', function() {
                     document.getElementById('result').innerHTML = `
                         <div class="alert alert-info">
                             <h4 class="alert-heading">Template Selected</h4>
-                            <p>Template "${templateFolder}" has been selected. Click "Send Selected Template" to proceed.</p>
+                            <p>Template "${escapeHtml(templateFolder)}" has been selected. Click "Send Selected Template" to proceed.</p>
                         </div>
                     `;
                 })

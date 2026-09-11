@@ -32,6 +32,12 @@ jobs:
       - name: Verify Python sources compile
         run: uv run python -m compileall src
 
+      - name: Lint with ruff
+        run: uv run ruff check src
+
+      - name: Type-check with mypy
+        run: uv run mypy src
+
       - name: Run unit tests
         working-directory: src
         run: uv run python -m unittest discover -p "test_*.py"

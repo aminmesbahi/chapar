@@ -345,7 +345,6 @@ wheels = [
 ]
 
 [[package]]
-<<<<<<< HEAD
 name = "mypy"
 version = "2.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -427,8 +426,6 @@ wheels = [
 ]
 
 [[package]]
-=======
->>>>>>> 3f1a95c20252e86896a86d905f917fae5a4f0e82
 name = "python-magic"
 version = "0.4.27"
 source = { registry = "https://pypi.org/simple" }
